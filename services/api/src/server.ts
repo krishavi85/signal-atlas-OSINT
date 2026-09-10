@@ -2,7 +2,7 @@ import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import { randomUUID } from 'node:crypto';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify';
 import { loadEnv } from './env.js';
 import { logger } from './logger.js';
 import { prisma } from './db.js';
@@ -22,7 +22,7 @@ import { registry } from './connectors/runtime.js';
 export async function buildServer(): Promise<FastifyInstance> {
   const env = loadEnv();
   const app = Fastify({
-    loggerInstance: logger,
+    loggerInstance: logger as unknown as FastifyBaseLogger,
     trustProxy: true,
     genReqId: () => randomUUID(),
     bodyLimit: 2 * 1024 * 1024,

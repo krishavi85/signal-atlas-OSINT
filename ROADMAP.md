@@ -17,11 +17,11 @@ Legend: ✅ done · 🟡 partial (usable, gaps noted) · ⚪ scaffolded (interfa
 | Prisma schema (all 21 tables of §36) | ✅ | SQLite; Postgres-portable |
 | Migrations + seed | ✅ | `npm run db:migrate && npm run db:seed` |
 | Auth (register/login/refresh/logout, Argon2id, JWT) | ✅ | |
-| Project CRUD + RBAC + pause/resume | 🟡 | CRUD+RBAC done; membership invite UI pending |
+| Project CRUD + RBAC + pause/resume | ✅ | CRUD, OWNER/EDITOR/VIEWER, membership API, pause/resume all done |
 | Connector SDK (`search/fetch/parse/normalize/healthCheck/rateLimitStatus/capabilities`) | ✅ | `packages/connectors/src/sdk` |
 | Connector registry + capability registry (§31) | ✅ | |
 | Connector health system (§32) | 🟡 | health probe + storage done; latency history chart pending |
-| Job system (states, progress, per-step retry) (§37) | 🟡 | in-process driver done; Redis driver interface only |
+| Job system (states, progress, per-step retry) (§37) | ✅ | in-process DB-backed runner: optimistic lock, stale-lock recovery, SSE progress, retry-failed-connectors-only. Redis/BullMQ = interface only |
 | Evidence model + immutable IDs + content hash (§9) | ✅ | `EVIDENCE-YYYY-NNNNNN` |
 | Audit log (§29) | ✅ | append-only, covers all mutations |
 | SSRF guard / outbound fetch policy (§40) | ✅ | |
@@ -47,7 +47,7 @@ Legend: ✅ done · 🟡 partial (usable, gaps noted) · ⚪ scaffolded (interfa
 | Item | State |
 |---|---|
 | Entity extraction (18 types, confidence, context) (§6) | 🟡 heuristic (regex/gazetteer); AI adapter wired, off by default |
-| Entity resolution (blocking, scored, reversible merge) (§7) | ⚪ interface + match scorer + tests |
+| Entity resolution (blocking, scored, reversible merge) (§7) | 🟡 scored matcher (Jaro-Winkler + identifier/acronym factors), merge-candidate API, reversible merge/unmerge w/ audit + merge log — done. Auto-blocking pass during ingest pending |
 | Relationship graph model + evidence-traceable edges (§8) | ⚪ schema done; builder + API partial |
 | Claim engine (subject/predicate/object, multi-evidence) (§10) | ⚪ schema + extractor stub |
 | Corroboration (single/multi/independent/contradicted) (§11) | ⚪ interface + independence heuristic |

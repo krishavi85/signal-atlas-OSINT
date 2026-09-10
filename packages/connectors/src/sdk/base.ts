@@ -77,6 +77,12 @@ export abstract class BaseConnector implements Connector {
   }
 
   async parse(input: RawHit | RawDocument, _ctx: ConnectorContext): Promise<unknown> {
+    // A RawHit carries the connector-shaped payload on `.raw`; unwrap it so
+    // subclasses' normalize() receive the provider object directly. A
+    // RawDocument (fetch path) has no `.raw` and passes through unchanged.
+    if (input && typeof input === 'object' && 'raw' in input) {
+      return (input as RawHit).raw;
+    }
     return input;
   }
 
