@@ -5,6 +5,7 @@ export { WikipediaConnector } from './connectors/wikipedia.js';
 export { HackerNewsConnector } from './connectors/hackernews.js';
 export { RssConnector } from './connectors/rss.js';
 export { GenericWebConnector } from './connectors/generic-web.js';
+export { WaybackConnector } from './connectors/wayback.js';
 export { BraveSearchConnector } from './connectors/brave.js';
 export { SearxngConnector } from './connectors/searxng.js';
 export { GoogleCseConnector } from './connectors/google-cse.js';
@@ -19,6 +20,7 @@ import { WikipediaConnector } from './connectors/wikipedia.js';
 import { HackerNewsConnector } from './connectors/hackernews.js';
 import { RssConnector } from './connectors/rss.js';
 import { GenericWebConnector } from './connectors/generic-web.js';
+import { WaybackConnector } from './connectors/wayback.js';
 import { BraveSearchConnector } from './connectors/brave.js';
 import { SearxngConnector } from './connectors/searxng.js';
 import { GoogleCseConnector } from './connectors/google-cse.js';
@@ -40,6 +42,7 @@ export function buildDefaultRegistry(): ConnectorRegistry {
     new HackerNewsConnector(),
     new RssConnector(),
     new GenericWebConnector(),
+    new WaybackConnector(),
     new BraveSearchConnector(),
     new SearxngConnector(),
     new GoogleCseConnector(),

@@ -67,6 +67,9 @@ model Project {
   dateRangeStart   DateTime?
   dateRangeEnd     DateTime?
   retentionDays    Int?                    // null => keep indefinitely (spec §30)
+  // per-connector scope, e.g. { "rss": { "feeds": [...] }, "reddit": { "subreddits": [...] },
+  // "facebook-graph": { "pageIds": [...] }, "instagram-graph": { "usernames": [...] } } (spec §4, §17)
+  connectorScopesJson Json?
   ownerId     String
   owner       User     @relation("ProjectOwner", fields: [ownerId], references: [id])
   createdAt   DateTime @default(now())
@@ -322,6 +325,7 @@ model Evidence {
   entities      EvidenceEntity[]
   claimLinks    ClaimEvidence[]
   timelineLinks TimelineEvent[]
+  embedding     EvidenceEmbedding?
 
   @@unique([year, seq])
   @@index([projectId, createdAt])
@@ -739,4 +743,22 @@ model Counter {
   value Int    @default(0)
 
   @@map("counters")
+}
+
+// Semantic retrieval (spec §23). No pgvector on SQLite, so the vector is stored
+// as a JSON float array and cosine similarity is computed in-process. On
+// PostgreSQL this becomes a `vector` column + an ivfflat/hnsw index.
+model EvidenceEmbedding {
+  evidenceId String   @id
+  evidence   Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  projectId  String
+  provider   String
+  model      String
+  dim        Int
+  vector     Json     // number[]
+  norm       Float    // precomputed L2 norm for fast cosine
+  createdAt  DateTime @default(now())
+
+  @@index([projectId])
+  @@map("evidence_embeddings")
 }

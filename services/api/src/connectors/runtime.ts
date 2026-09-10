@@ -67,6 +67,13 @@ export async function ensureConnectorsSeeded(): Promise<void> {
       update: { displayName: c.displayName, category: report.category },
     });
   }
+  // pseudo-connectors that are not Connector classes but need a row for the
+  // Evidence.connectorId FK (user uploads).
+  await prisma.connector.upsert({
+    where: { id: 'document' },
+    create: { id: 'document', displayName: 'Uploaded document', category: 'user-input' },
+    update: {},
+  });
 }
 
 export function getReport(c: Connector, ctx: ConnectorContext | null = null) {

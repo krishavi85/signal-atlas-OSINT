@@ -141,6 +141,9 @@ export function extractEntitiesHeuristic(text: string): ExtractedEntity[] {
     raw,
   );
 
+  extractOrganizations(text, raw);
+  extractPeople(text, raw);
+
   // Domains — but not if they are really the tail of a URL/email or a filename.
   DOMAIN_RE.lastIndex = 0;
   let dm: RegExpExecArray | null;
@@ -171,12 +174,107 @@ export function extractEntitiesHeuristic(text: string): ExtractedEntity[] {
   return dedupeEntities(raw);
 }
 
+/**
+ * ORGANIZATION extraction — high precision, low recall. A capitalized phrase is
+ * only kept when it either contains an organisation keyword (Foundation, Ventures,
+ * University, …) or occurs at least twice in the text. Sentence-initial single
+ * words and all-stopword phrases are rejected.
+ */
+const ORG_KEYWORD =
+  /\b(Foundation|Institute|University|College|Corporation|Company|Group|Holdings|Labs?|Laboratories|Ventures|Capital|Partners|Association|Consortium|Committee|Commission|Council|Agency|Authority|Department|Ministry|Bureau|Bank|Foundation|Society|Alliance|Coalition|Network|Systems|Technologies|Solutions|Industries|Motors|Airlines|Media|Studios?|Records|Press|Union|League|Federation|Trust|Fund)\b/;
+const TITLECASE_PHRASE =
+  /\b([A-Z][A-Za-z0-9&'-]+(?:\s+(?:[A-Z][A-Za-z0-9&'-]+|of|the|&|de|van|von|la|le)){1,4})\b/g;
+const TRIM_CONNECTORS = /^(?:of|the|de|van|von|la|le|and|for)\s+|\s+(?:of|the|de|van|von|la|le|and|for)$/gi;
+const MONTHS = new Set([
+  'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october',
+  'november', 'december', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
+]);
+
+function extractOrganizations(text: string, out: ExtractedEntity[]): void {
+  const counts = new Map<string, number>();
+  TITLECASE_PHRASE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  const seenFirst = new Map<string, RegExpExecArray>();
+  while ((m = TITLECASE_PHRASE.exec(text)) !== null) {
+    const phrase = m[0]
+      .replace(/\s+/g, ' ')
+      .replace(TRIM_CONNECTORS, '')
+      .trim();
+    const words = phrase.split(' ');
+    if (words.length < 2) continue;
+    const capWords = words.filter((w) => /^[A-Z]/.test(w));
+    if (capWords.length < 2) continue;
+    if (words.every((w) => COMMON_WORDS.has(w.toLowerCase()) || MONTHS.has(w.toLowerCase()))) continue;
+    if (MONTHS.has(words[0]!.toLowerCase())) continue;
+    const key = phrase.toLowerCase();
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+    if (!seenFirst.has(key)) seenFirst.set(key, m);
+  }
+  for (const [key, count] of counts) {
+    const first = seenFirst.get(key)!;
+    const phrase = first[0].replace(/\s+/g, ' ').trim();
+    const hasKeyword = ORG_KEYWORD.test(phrase);
+    if (!hasKeyword && count < 2) continue;
+    out.push({
+      type: 'ORGANIZATION',
+      canonicalValue: phrase,
+      originalText: first[0],
+      confidence: hasKeyword ? 0.55 : 0.4,
+      offset: first.index,
+      context: ctx(text, first.index, first[0].length),
+      method: 'regex',
+    });
+  }
+}
+
+/**
+ * PERSON extraction via explicit role context only: "CEO Jane Doe",
+ * "Jane Doe, chief executive", "founder Jane Doe", "Dr. Jane Doe".
+ * Bare capitalized bigrams are NOT treated as people (too noisy).
+ */
+const ROLE =
+  '(?:CEO|CTO|CFO|COO|CIO|chair(?:man|woman|person)?|president|founder|co-founder|director|chief\\s+\\w+\\s+officer|managing\\s+director|head\\s+of\\s+\\w+|spokesperson|minister|senator|governor|mayor|professor|Dr\\.?|Mr\\.?|Mrs\\.?|Ms\\.?)';
+const NAME = `[A-Z][a-z]+(?:\\s+(?:[A-Z][a-z]+|[A-Z]\\.)){1,2}`;
+const PERSON_BEFORE = new RegExp(`\\b${ROLE}\\s+(?:is\\s+|was\\s+|,\\s+)?(${NAME})`, 'gi');
+const PERSON_AFTER = new RegExp(`\\b(${NAME}),?\\s+(?:the\\s+)?${ROLE}\\b`, 'g');
+
+function extractPeople(text: string, out: ExtractedEntity[]): void {
+  for (const re of [PERSON_BEFORE, PERSON_AFTER]) {
+    re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      const name = (m[1] ?? '').replace(/\s+/g, ' ').trim();
+      const parts = name.split(' ');
+      // every token must be genuinely Title-Case in the source (the `i` flag on
+      // the role part would otherwise let "is Jane Doe" through)
+      if (parts.length < 2 || !parts.every((p) => /^[A-Z]([a-z'-]+|\.)$/.test(p))) continue;
+      if (parts.some((p) => COMMON_WORDS.has(p.toLowerCase()) || MONTHS.has(p.toLowerCase()))) continue;
+      out.push({
+        type: 'PERSON',
+        canonicalValue: name,
+        originalText: m[1] ?? name,
+        confidence: 0.55,
+        offset: m.index,
+        context: ctx(text, m.index, m[0].length),
+        method: 'regex',
+      });
+    }
+  }
+}
+
 export function dedupeEntities(entities: ExtractedEntity[]): ExtractedEntity[] {
   const byKey = new Map<string, ExtractedEntity>();
   for (const e of entities) {
     const key = `${e.type}::${e.canonicalValue.toLowerCase()}`;
     const existing = byKey.get(key);
     if (!existing || e.confidence > existing.confidence) byKey.set(key, e);
+  }
+  // Collapse ORGANIZATION into COMPANY when the same value was matched as both.
+  const companyValues = new Set(
+    [...byKey.values()].filter((e) => e.type === 'COMPANY').map((e) => e.canonicalValue.toLowerCase()),
+  );
+  for (const [key, e] of byKey) {
+    if (e.type === 'ORGANIZATION' && companyValues.has(e.canonicalValue.toLowerCase())) byKey.delete(key);
   }
   return [...byKey.values()].sort((a, b) => a.offset - b.offset);
 }

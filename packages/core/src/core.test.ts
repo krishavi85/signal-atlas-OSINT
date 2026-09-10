@@ -110,6 +110,19 @@ test('extractEntitiesHeuristic finds emails, urls, hashtags, handles, dates, com
   assert.ok(ents.every((e) => e.confidence > 0 && e.confidence <= 1));
 });
 
+test('extractEntitiesHeuristic: organizations (keyword or repeated) and role-anchored people', () => {
+  const text =
+    'Acme Robotics raised a round led by Foo Ventures. Acme Robotics later hired staff. ' +
+    'The CEO is Jane Doe. Globex Corporation partnered with Acme Robotics.';
+  const ents = extractEntitiesHeuristic(text);
+  const orgs = ents.filter((e) => e.type === 'ORGANIZATION' || e.type === 'COMPANY').map((e) => e.canonicalValue);
+  assert.ok(orgs.some((o) => o === 'Foo Ventures'), `expected Foo Ventures, got ${orgs}`);
+  assert.ok(orgs.some((o) => o.startsWith('Acme Robotics')), 'Acme Robotics repeated => org'); // appears 3x
+  assert.ok(ents.some((e) => e.type === 'PERSON' && e.canonicalValue === 'Jane Doe'));
+  // "The CEO" must not be extracted as a person
+  assert.ok(!ents.some((e) => e.type === 'PERSON' && /CEO|The/.test(e.canonicalValue)));
+});
+
 test('extractEntitiesHeuristic: prose fragments are not mistaken for domains', () => {
   const ents = extractEntitiesHeuristic(
     'You should move it. Unless the plan changes, we ship in Q3. See acme.io for details and contact ops@acme.io.',

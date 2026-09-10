@@ -12,6 +12,7 @@ import { EntitiesTab } from './EntitiesTab';
 import { ClaimsTab } from './ClaimsTab';
 import { TimelineTab } from './TimelineTab';
 import { ConnectionsTab } from './ConnectionsTab';
+import { DocumentsTab } from './DocumentsTab';
 import { AuditTab } from './AuditTab';
 
 interface ProjectDetail {
@@ -23,7 +24,7 @@ interface ProjectDetail {
   _count: Record<string, number>;
 }
 
-const TABS = ['Overview', 'Search', 'Evidence', 'Entities', 'Claims', 'Timeline', 'Connections', 'Audit'] as const;
+const TABS = ['Overview', 'Search', 'Evidence', 'Entities', 'Claims', 'Timeline', 'Connections', 'Documents', 'Audit'] as const;
 type Tab = (typeof TABS)[number];
 
 export default function InvestigationPage() {
@@ -89,6 +90,7 @@ export default function InvestigationPage() {
       {tab === 'Claims' && <ClaimsTab projectId={id} canEdit={canEdit} />}
       {tab === 'Timeline' && <TimelineTab projectId={id} />}
       {tab === 'Connections' && <ConnectionsTab projectId={id} />}
+      {tab === 'Documents' && <DocumentsTab projectId={id} canEdit={canEdit} />}
       {tab === 'Audit' && <AuditTab projectId={id} />}
     </div>
   );

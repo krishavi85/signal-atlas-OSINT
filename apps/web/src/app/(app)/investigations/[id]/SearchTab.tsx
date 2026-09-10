@@ -128,6 +128,8 @@ export function SearchTab({ projectId, canEdit, projectActive }: { projectId: st
       {!canEdit && <p className="text-xs text-amber-400">You have viewer access — running searches requires EDITOR.</p>}
       {!projectActive && <p className="text-xs text-amber-400">Investigation is paused. Resume it to run searches.</p>}
 
+      {canEdit && <SourceScopes projectId={projectId} />}
+
       <div className="card space-y-3 p-4">
         <div>
           <label className="label">Query (supports AND / OR / NOT / &quot;phrase&quot; / site: / -domain / after:YYYY-MM-DD)</label>
@@ -235,6 +237,85 @@ export function SearchTab({ projectId, canEdit, projectActive }: { projectId: st
       )}
 
       <SearchHistory data={history.data} loading={history.loading} error={history.error} reload={history.reload} />
+    </div>
+  );
+}
+
+function SourceScopes({ projectId }: { projectId: string }) {
+  const { data, reload } = useApi<{ connectorScopesJson: Record<string, any> | null }>(`/projects/${projectId}`);
+  const [open, setOpen] = useState(false);
+  const [feeds, setFeeds] = useState('');
+  const [subs, setSubs] = useState('');
+  const [saved, setSaved] = useState(false);
+
+  const current = data?.connectorScopesJson ?? {};
+  const currentFeeds: string[] = current.rss?.feeds ?? [];
+  const currentSubs: string[] = current.reddit?.subreddits ?? [];
+
+  async function save() {
+    const connectorScopes: Record<string, unknown> = { ...current };
+    const feedList = (feeds || currentFeeds.join('\n'))
+      .split(/[\s,]+/)
+      .map((s) => s.trim())
+      .filter((s) => /^https?:\/\//.test(s));
+    const subList = (subs || currentSubs.join('\n'))
+      .split(/[\s,]+/)
+      .map((s) => s.trim().replace(/^\/?r\//, ''))
+      .filter(Boolean);
+    connectorScopes.rss = { feeds: feedList };
+    connectorScopes.reddit = { subreddits: subList };
+    await api(`/projects/${projectId}`, { method: 'PATCH', body: JSON.stringify({ connectorScopes }) });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+    void reload();
+  }
+
+  return (
+    <div className="card p-3 text-sm">
+      <button className="flex w-full items-center gap-2 text-left text-slate-300" onClick={() => setOpen((v) => !v)}>
+        <span className="font-medium">Configure sources</span>
+        <span className="text-[11px] text-slate-600">
+          {currentFeeds.length} RSS feed(s) · {currentSubs.length} subreddit(s)
+        </span>
+        <span className="ml-auto text-slate-600">{open ? '▾' : '▸'}</span>
+      </button>
+      {open && (
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <div>
+            <label className="label">RSS / Atom feed URLs (one per line)</label>
+            <textarea
+              className="input font-mono text-xs"
+              rows={4}
+              defaultValue={currentFeeds.join('\n')}
+              onChange={(e) => setFeeds(e.target.value)}
+              placeholder="https://example.com/feed.xml&#10;https://news.example/rss"
+            />
+            <p className="mt-1 text-[11px] text-slate-600">
+              The RSS connector needs feed URLs — it does not crawl for them. Point it at publication feeds or a news
+              aggregator&apos;s RSS.
+            </p>
+          </div>
+          <div>
+            <label className="label">Reddit subreddits (one per line)</label>
+            <textarea
+              className="input font-mono text-xs"
+              rows={4}
+              defaultValue={currentSubs.join('\n')}
+              onChange={(e) => setSubs(e.target.value)}
+              placeholder="technology&#10;privacy"
+            />
+            <p className="mt-1 text-[11px] text-slate-600">
+              Restricts Reddit search to these subreddits. Requires the Reddit connector to be configured
+              (client id/secret).
+            </p>
+          </div>
+          <div className="md:col-span-2">
+            <button className="btn-primary" onClick={save}>
+              {saved ? 'Saved ✓' : 'Save source config'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

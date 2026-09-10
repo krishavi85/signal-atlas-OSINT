@@ -30,6 +30,7 @@ export function EvidenceTab({ projectId, canEdit }: { projectId: string; canEdit
   const [platform, setPlatform] = useState('');
   const [includeDuplicates, setIncludeDuplicates] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  const [mode, setMode] = useState<'keyword' | 'semantic'>('keyword');
 
   const params = new URLSearchParams();
   if (q) params.set('q', q);
@@ -42,39 +43,70 @@ export function EvidenceTab({ projectId, canEdit }: { projectId: string; canEdit
     facets: { platform: Array<{ value: string; count: number }> };
   }>(`/projects/${projectId}/evidence?${params.toString()}`, [q, platform, includeDuplicates]);
 
+  const semantic = useApi<{
+    available: boolean;
+    reason?: string;
+    setup?: string;
+    indexed?: number;
+    total?: number;
+    results?: Array<{ id: string; title: string | null; url: string | null; sourcePlatform: string; excerpt: string | null; score: number }>;
+  }>(mode === 'semantic' && q.length > 1 ? `/projects/${projectId}/semantic-search?q=${encodeURIComponent(q)}` : null, [mode, q]);
+  const semStatus = useApi<{ available: boolean; reason?: string; setup?: string; indexed: number; total: number }>(
+    mode === 'semantic' ? `/projects/${projectId}/semantic-status` : null,
+  );
+
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
       <div className="space-y-3">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-1 rounded-md bg-ink-950 p-1 text-xs">
+            {(['keyword', 'semantic'] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                className={`rounded px-2 py-1 capitalize ${mode === m ? 'bg-ink-800 text-slate-100' : 'text-slate-500'}`}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
           <input
             className="input max-w-xs"
-            placeholder="Full-text search collected evidence…"
+            placeholder={mode === 'semantic' ? 'Describe what you are looking for…' : 'Full-text search collected evidence…'}
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
-          <select className="input w-40" value={platform} onChange={(e) => setPlatform(e.target.value)}>
-            <option value="">All platforms</option>
-            {data?.facets.platform.map((f) => (
-              <option key={f.value} value={f.value}>
-                {f.value} ({f.count})
-              </option>
-            ))}
-          </select>
-          <label className="flex items-center gap-1.5 text-xs text-slate-400">
-            <input type="checkbox" checked={includeDuplicates} onChange={(e) => setIncludeDuplicates(e.target.checked)} />
-            show duplicates
-          </label>
+          {mode === 'keyword' && (
+            <>
+              <select className="input w-40" value={platform} onChange={(e) => setPlatform(e.target.value)}>
+                <option value="">All platforms</option>
+                {data?.facets.platform.map((f) => (
+                  <option key={f.value} value={f.value}>
+                    {f.value} ({f.count})
+                  </option>
+                ))}
+              </select>
+              <label className="flex items-center gap-1.5 text-xs text-slate-400">
+                <input type="checkbox" checked={includeDuplicates} onChange={(e) => setIncludeDuplicates(e.target.checked)} />
+                show duplicates
+              </label>
+            </>
+          )}
         </div>
 
-        {loading ? (
-          <Spinner />
-        ) : error ? (
-          <ErrorState error={error} retry={reload} />
-        ) : !data || data.items.length === 0 ? (
-          <EmptyState title="No evidence matches" hint="Run a search or relax the filters." />
-        ) : (
-          <ul className="space-y-2">
-            {data.items.map((e) => (
+        {mode === 'semantic' && (
+          <SemanticPanel projectId={projectId} canEdit={canEdit} status={semStatus.data ?? undefined} statusLoading={semStatus.loading} results={semantic} onSelect={setSelected} selected={selected} />
+        )}
+        {mode === 'keyword' &&
+          (loading ? (
+            <Spinner />
+          ) : error ? (
+            <ErrorState error={error} retry={reload} />
+          ) : !data || data.items.length === 0 ? (
+            <EmptyState title="No evidence matches" hint="Run a search or relax the filters." />
+          ) : (
+            <ul className="space-y-2">
+              {data.items.map((e) => (
               <li
                 key={e.id}
                 onClick={() => setSelected(e.id)}
@@ -97,9 +129,9 @@ export function EvidenceTab({ projectId, canEdit }: { projectId: string; canEdit
                   <span>via &quot;{e.discoveryQuery}&quot;</span>
                 </div>
               </li>
-            ))}
-          </ul>
-        )}
+              ))}
+            </ul>
+          ))}
       </div>
 
       <aside className="lg:sticky lg:top-20 lg:self-start">
@@ -205,6 +237,96 @@ function EvidenceInspector({ evidenceId, canEdit, onDeleted }: { evidenceId: str
             ))}
           </ul>
         </div>
+      )}
+    </div>
+  );
+}
+
+function SemanticPanel({
+  projectId,
+  canEdit,
+  status,
+  statusLoading,
+  results,
+  onSelect,
+  selected,
+}: {
+  projectId: string;
+  canEdit: boolean;
+  status?: { available: boolean; reason?: string; setup?: string; indexed: number; total: number };
+  statusLoading: boolean;
+  results: ReturnType<typeof useApi<any>>;
+  onSelect: (id: string) => void;
+  selected: string | null;
+}) {
+  const [reindexing, setReindexing] = useState(false);
+  if (statusLoading) return <Spinner />;
+
+  if (status && !status.available) {
+    return (
+      <div className="rounded-lg border border-amber-900 bg-amber-950/20 p-4 text-sm text-amber-300">
+        <p className="font-medium">Semantic search is unavailable</p>
+        <p className="mt-1 text-amber-400">{status.reason}</p>
+        {status.setup && <p className="mt-1 text-xs text-amber-500">{status.setup}</p>}
+        <p className="mt-2 text-xs text-slate-500">
+          Keyword search still works. No lexical results are dressed up as semantic (§51).
+        </p>
+      </div>
+    );
+  }
+
+  const r = results.data;
+  return (
+    <div className="space-y-2">
+      {status && (
+        <div className="flex items-center gap-2 text-xs text-slate-500">
+          <span>
+            index: {status.indexed}/{status.total} evidence embedded
+          </span>
+          {canEdit && status.indexed < status.total && (
+            <button
+              className="btn-ghost py-0.5"
+              disabled={reindexing}
+              onClick={async () => {
+                setReindexing(true);
+                try {
+                  await api(`/projects/${projectId}/semantic-reindex`, { method: 'POST' });
+                } finally {
+                  setReindexing(false);
+                }
+              }}
+            >
+              {reindexing ? 'queued…' : 'build index'}
+            </button>
+          )}
+        </div>
+      )}
+      {results.loading ? (
+        <Spinner label="Embedding query & ranking…" />
+      ) : !r ? (
+        <EmptyState title="Enter a description" hint="e.g. 'discussion of funding or financial trouble'" />
+      ) : !r.available ? (
+        <div className="rounded border border-amber-900 bg-amber-950/20 p-3 text-xs text-amber-300">{r.reason}</div>
+      ) : (r.results ?? []).length === 0 ? (
+        <EmptyState title="No semantically similar evidence" hint={`${r.indexed ?? 0} records indexed`} />
+      ) : (
+        <ul className="space-y-2">
+          {r.results!.map((e: any) => (
+            <li
+              key={e.id}
+              onClick={() => onSelect(e.id)}
+              className={`card cursor-pointer p-3 text-sm hover:border-ink-600 ${selected === e.id ? 'border-accent' : ''}`}
+            >
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-[10px] text-slate-600">{e.id}</span>
+                <Badge tone="blue">{e.sourcePlatform}</Badge>
+                <Badge tone="violet">similarity {(e.score * 100).toFixed(0)}%</Badge>
+              </div>
+              <p className="mt-1 font-medium text-slate-200">{e.title ?? e.url ?? '(untitled)'}</p>
+              {e.excerpt && <p className="mt-1 line-clamp-2 text-xs text-slate-500">{e.excerpt}</p>}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

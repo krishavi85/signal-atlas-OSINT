@@ -27,6 +27,22 @@ export async function assertProjectAccess(
   return { role };
 }
 
+/**
+ * Per-connector scope configuration (§4, §17). Keys are connector ids; values
+ * are connector-specific. The orchestrator passes these into `search({ scope })`.
+ */
+const ConnectorScopes = z
+  .object({
+    rss: z.object({ feeds: z.array(z.string().url()).max(50) }).partial().optional(),
+    reddit: z.object({ subreddits: z.array(z.string().max(50)).max(25) }).partial().optional(),
+    github: z.object({ type: z.enum(['repositories', 'users']) }).partial().optional(),
+    'facebook-graph': z.object({ pageIds: z.array(z.string().max(120)).max(25) }).partial().optional(),
+    'instagram-graph': z.object({ usernames: z.array(z.string().max(60)).max(25) }).partial().optional(),
+    youtube: z.object({ type: z.enum(['video', 'channel']) }).partial().optional(),
+    hackernews: z.object({ tags: z.string().max(60) }).partial().optional(),
+  })
+  .partial();
+
 const CreateProject = z.object({
   name: z.string().min(1).max(200),
   objective: z.string().max(2000).optional(),
@@ -34,6 +50,7 @@ const CreateProject = z.object({
   dateRangeStart: z.string().datetime().optional(),
   dateRangeEnd: z.string().datetime().optional(),
   retentionDays: z.number().int().positive().max(3650).nullable().optional(),
+  connectorScopes: ConnectorScopes.optional(),
 });
 
 const UpdateProject = CreateProject.partial().extend({
@@ -86,6 +103,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
         dateRangeStart: input.dateRangeStart ? new Date(input.dateRangeStart) : null,
         dateRangeEnd: input.dateRangeEnd ? new Date(input.dateRangeEnd) : null,
         retentionDays: input.retentionDays ?? null,
+        connectorScopesJson: input.connectorScopes ? (input.connectorScopes as object) : undefined,
         ownerId: u.id,
         members: { create: { userId: u.id, role: 'OWNER' } },
       },
@@ -135,6 +153,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
     if (input.dateRangeStart !== undefined) data.dateRangeStart = input.dateRangeStart ? new Date(input.dateRangeStart) : null;
     if (input.dateRangeEnd !== undefined) data.dateRangeEnd = input.dateRangeEnd ? new Date(input.dateRangeEnd) : null;
     if (input.retentionDays !== undefined) data.retentionDays = input.retentionDays;
+    if (input.connectorScopes !== undefined) data.connectorScopesJson = input.connectorScopes as object;
     if (input.status !== undefined) data.status = input.status;
 
     const project = await prisma.project.update({ where: { id }, data });

@@ -75,7 +75,7 @@ test('key-gated connectors declare a config gap when unconfigured', () => {
 });
 
 test('key-free connectors have no blocking gaps', () => {
-  for (const id of ['wikipedia', 'hackernews', 'rss', 'web-generic']) {
+  for (const id of ['wikipedia', 'hackernews', 'rss', 'web-generic', 'wayback']) {
     const c = registry.get(id)!;
     const fn = c.capabilities as (ctx?: ConnectorContext | null) => ReturnType<typeof c.capabilities>;
     const report = fn.call(c, offlineCtx());
@@ -98,6 +98,7 @@ test('normalize() output validates against NormalizedResult schema', async () =>
     ['hackernews', { objectID: '123', title: 'Show HN: Acme', story_title: null, url: 'https://acme.example', story_url: null, author: 'pg', points: 10, num_comments: 3, created_at: '2025-02-02T00:00:00Z', created_at_i: 1, comment_text: null, story_text: 'body', _tags: ['story'] }],
     ['rss', { item: { title: 'News', link: 'https://news.example/a', description: '<p>hi</p>', content: null, author: 'Jane', publishedAt: '2025-03-03T00:00:00Z', guid: 'g1' }, feedTitle: 'Feed', feedUrl: 'https://news.example/rss' }],
     ['github', { id: 5, full_name: 'acme/widgets', html_url: 'https://github.com/acme/widgets', description: 'Widgets', owner: { login: 'acme' }, created_at: '2024-01-01T00:00:00Z', stargazers_count: 3, forks_count: 1, open_issues_count: 0, topics: [], __target: 'repositories' }],
+    ['wayback', { timestamp: '20230115120000', original: 'http://acme.example/', mimetype: 'text/html', statuscode: '200', digest: 'ABC123' }],
   ];
   for (const [id, parsed] of cases) {
     const c = registry.get(id)!;

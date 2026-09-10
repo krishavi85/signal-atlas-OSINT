@@ -1,5 +1,6 @@
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
+import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify';
@@ -16,6 +17,7 @@ import { evidenceRoutes } from './modules/evidence.routes.js';
 import { entityRoutes } from './modules/entities.routes.js';
 import { jobRoutes } from './modules/jobs.routes.js';
 import { intelligenceRoutes } from './modules/intelligence.routes.js';
+import { documentRoutes } from './modules/documents.routes.js';
 import { dashboardRoutes } from './modules/dashboard.routes.js';
 import { sseRoutes } from './realtime/sse.js';
 import { registry } from './connectors/runtime.js';
@@ -39,6 +41,7 @@ export async function buildServer(): Promise<FastifyInstance> {
     timeWindow: '1 minute',
     allowList: (req) => req.url === '/healthz' || req.url === '/readyz',
   });
+  await app.register(multipart, { limits: { fileSize: 25 * 1024 * 1024, files: 1 } });
 
   registerErrorHandler(app);
   // Decorate the root instance directly so `authenticate` / `requireAdmin` are
@@ -91,6 +94,7 @@ export async function buildServer(): Promise<FastifyInstance> {
       await api.register(evidenceRoutes);
       await api.register(entityRoutes);
       await api.register(intelligenceRoutes);
+      await api.register(documentRoutes);
       await api.register(jobRoutes);
       await api.register(dashboardRoutes);
       await api.register(sseRoutes);

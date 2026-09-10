@@ -41,8 +41,25 @@ table and appears in the UI with its honest capability/health state.
 |----|--------|-------|
 | `wikipedia` | MediaWiki Action API + REST summary | language editions via `scope.lang` |
 | `hackernews` | Algolia HN Search API | stories + comments, date filters, pagination |
-| `rss` | RSS / Atom feeds | **requires `scope.feeds`** (comma-separated feed URLs); does not crawl for feeds |
+| `rss` | RSS / Atom feeds | **requires feed URLs** via project *Configure sources* (`connectorScopes.rss.feeds`); does not crawl for feeds |
+| `wayback` | Internet Archive Wayback Machine (CDX API) | query a **domain or URL** to list captures over time; snapshot fetch. No full-text search of archived content exists — a keyword query returns empty + a notice |
 | `web-generic` | one user-supplied URL | robots-aware, SSRF-guarded, content-hashed; fetch only, no search |
+| `github` | GitHub REST API | anonymous 60/h; `GITHUB_TOKEN` → 5000/h. Repos + users |
+
+## Documents (not a connector — an ingest pipeline, §20)
+
+Upload PDF / DOCX / TXT / CSV / JSON / HTML via the **Documents** tab or
+`POST /api/v1/projects/:id/documents` (multipart). The file is stored, text +
+metadata extracted (`unpdf` for PDF, `mammoth` for DOCX, native for the rest),
+an `Evidence` record created, and entity + claim + relationship + timeline
+passes re-run for the project.
+
+## Per-project source scoping (§4, §17)
+
+`PATCH /api/v1/projects/:id` with `connectorScopes` — e.g.
+`{ "rss": { "feeds": ["https://…/rss"] }, "reddit": { "subreddits": ["privacy","technology"] } }`.
+The orchestrator passes the relevant slice into each connector's
+`search({ scope })`. Configurable from the UI under *Search → Configure sources*.
 
 ### Key-gated (report `NOT_CONFIGURED` until set — never fabricate results)
 

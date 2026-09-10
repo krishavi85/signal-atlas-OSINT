@@ -21,11 +21,11 @@ This repository is under active construction against a 10-phase roadmap
 
 | Phase | Area | State |
 |------:|------|-------|
-| 1 | Foundation — monorepo, DB, auth, projects, connector SDK, job system, evidence, audit | 🟡 in progress |
-| 2 | Search — web search, query planning, normalization, dedup, history | 🟡 in progress |
-| 3 | Intelligence — entity extraction/resolution, claims, relationships, timeline, corroboration, contradictions | ⚪ scaffolded |
-| 4 | Social connectors (official APIs only) | ⚪ registry + docs only |
-| 5 | AI research analyst + semantic search + reports | ⚪ abstraction only |
+| 1 | Foundation — monorepo, DB, auth, projects, connector SDK, job system, evidence, audit | ✅ done |
+| 2 | Search — web search, query planning, normalization, dedup, history, rate limiting, caching | ✅ done |
+| 3 | Intelligence — entity extraction/resolution, claims, relationships, timeline, corroboration, contradictions, document ingestion, semantic search | ✅ done |
+| 4 | Social connectors (official APIs only) + Wayback + per-project source scoping | ✅ built (Meta/IG/YouTube/Reddit gated on operator credentials) |
+| 5 | AI research analyst — evidence-grounded summarization, AI query expansion, report generation | ⚪ provider abstraction + embeddings done; synthesis not started |
 | 6 | Visual intelligence — graph, timeline, explorers | ⚪ not started |
 | 7 | Monitoring — scheduled search, change detection, alerts | ⚪ not started |
 | 8 | Export — PDF/DOCX/CSV/JSON/MD + evidence packages | ⚪ not started |
@@ -70,13 +70,18 @@ Open http://localhost:3000.
 
 ## Working connectors out of the box (no API key)
 
-- **RSS / Atom** — any feed URL, news search via feed aggregators
-- **Wikipedia** — REST + OpenSearch APIs
+- **Wikipedia** — MediaWiki + REST APIs
 - **Hacker News** — Algolia HN Search API
-- **Generic web fetch** — a user-supplied URL, robots-respecting, with content hashing
+- **RSS / Atom** — any feed URL (configure per project under *Search → Configure sources*)
+- **Wayback Machine** — Internet Archive capture history for a domain/URL
+- **Generic web fetch** — a user-supplied URL, robots-respecting, content-hashed
+- **GitHub** — works anonymously (a token just raises rate limits)
+- **Document upload** — PDF / DOCX / TXT / CSV / JSON / HTML
 
-Configure keys in `.env` to enable Google CSE, Bing, Brave, SearXNG, YouTube,
-Reddit, GitHub, and the Meta Graph connectors. See [`docs/CONNECTORS.md`](docs/CONNECTORS.md).
+Configure keys in `.env` to enable Google CSE, Brave, SearXNG, YouTube,
+Reddit, and the Meta (Facebook/Instagram) Graph connectors. Optional embedding
+provider (Ollama/OpenAI) unlocks semantic search. See
+[`docs/CONNECTORS.md`](docs/CONNECTORS.md) and [`docs/AI.md`](docs/AI.md).
 
 ## Tests
 

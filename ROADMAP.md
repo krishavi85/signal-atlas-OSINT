@@ -55,19 +55,21 @@ Legend: ✅ done · 🟡 partial (usable, gaps noted) · ⚪ scaffolded (interfa
 | Confidence model (factor-based, exposed) (§44) | ✅ 5–6 weighted factors per claim w/ explanations; "WHY?" panel renders them |
 | Contradiction engine (§45) | ✅ pairwise conflict detection; HIGH for numeric/date/single-value; rows left OPEN, analyst resolves (never auto-picked); UI controls |
 | Timeline engine (§15) | ✅ events from evidence dates + dated claims; zoom + type filter UI; idempotent rebuild, analyst events preserved |
-| Document ingestion (PDF/DOCX/CSV) (§20) | ⚪ `documents` table only |
-| Semantic search (§23) | ⚪ needs embeddings + vector store |
+| Document ingestion (PDF/DOCX/TXT/CSV/JSON/HTML) (§20) | ✅ upload → storage → text+metadata extract (unpdf/mammoth/native) → Evidence → entities → re-run claim/relationship/timeline passes; Documents tab UI |
+| Semantic search (§23) | ✅ EmbeddingProvider abstraction (ollama/openai), `evidence_embeddings` table, in-process cosine rank, EMBED job, Evidence-tab semantic mode. **Unavailable & honest** without a configured provider (no lexical results faked as semantic) |
 
-## Phase 4 — Social connectors (official APIs only)
+## Phase 4 — Social connectors (official APIs only)  🟡 built, mostly gated on operator credentials
 
 | Item | State |
 |---|---|
-| Meta Graph (Facebook Pages/Posts/Events — public, permitted) | ⚪ client + capability registry + setup docs; **requires app review + tokens** |
-| Instagram Graph (business/creator public data) | ⚪ same |
-| YouTube Data API v3 | 🟡 implemented; needs `YOUTUBE_DATA_API_KEY` |
-| Reddit (OAuth script app) | 🟡 implemented; needs client id/secret |
-| GitHub REST | 🟡 implemented; anonymous works, token raises limits |
-| **Explicitly NOT built:** scraping, auth bypass, private data, CAPTCHA solving | ✅ by policy |
+| Meta Graph (Facebook Pages/Posts/Events) | ✅ implemented — official Graph API only, reads a Page the token can access (metadata + posts + events), honestly declares that no cross-Facebook search exists for third parties and that it needs App Review + `META_GRAPH_ACCESS_TOKEN` |
+| Instagram Graph (`business_discovery`) | ✅ implemented — public profile + recent media of a business/creator account by username; declares App Review + Business account + `INSTAGRAM_GRAPH_ACCESS_TOKEN` + `INSTAGRAM_BUSINESS_USER_ID` |
+| YouTube Data API v3 | ✅ implemented; needs `YOUTUBE_DATA_API_KEY` |
+| Reddit (OAuth script app) | ✅ implemented; needs client id/secret; per-project subreddit scoping |
+| GitHub REST | ✅ implemented; anonymous works, `GITHUB_TOKEN` raises limits |
+| Wayback Machine (Internet Archive) | ✅ **new, key-free** — query a domain/URL to list captures over time; snapshot fetch; monitoring-capable |
+| Per-project connector scope config (§4, §17) | ✅ `connectorScopesJson` on Project + "Configure sources" UI (RSS feeds, subreddits, …); orchestrator passes it into `search({ scope })` |
+| **Explicitly NOT built:** scraping, auth bypass, private data, CAPTCHA solving, non-public account data | ✅ by policy (§30) — connectors report `PLATFORM_RESTRICTION` gaps instead |
 
 ## Phase 5 — AI
 

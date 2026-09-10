@@ -74,6 +74,11 @@ export async function runResearchRun(
 
   await prisma.search.update({ where: { id: searchId }, data: { status: 'RUNNING' } });
 
+  // Seed the search subject as a known entity so claims can be anchored to it
+  // even when the heuristic extractors would not pick the bare name out of prose
+  // (§6, §7). The user told us the subject — that is a high-precision signal.
+  await seedSubjectEntity(search.projectId, search.originalQuery, search.subjectType);
+
   // ── 1. plan ────────────────────────────────────────────────────────────────
   const { queries, parsedWarnings } = planQueries({
     originalQuery: search.originalQuery,
@@ -333,46 +338,12 @@ export async function runResearchRun(
     if (ev.isDuplicate) continue;
     const text = [ev.result.title, ev.result.excerpt, ev.result.fullText].filter(Boolean).join('\n\n');
     if (!text) continue;
-    const selfDomain = ev.result.url ? canonicalizeUrl(ev.result.url)?.registrableDomain ?? null : null;
-    const entities = extractEntitiesHeuristic(text)
-      .filter((e) => !isNoiseEntity(e.type, e.canonicalValue, selfDomain))
-      .slice(0, 60);
-    for (const e of entities) {
-      const entity = await prisma.entity.upsert({
-        where: {
-          projectId_type_canonicalValue: {
-            projectId: search.projectId,
-            type: e.type,
-            canonicalValue: e.canonicalValue.toLowerCase(),
-          },
-        },
-        create: {
-          projectId: search.projectId,
-          type: e.type,
-          canonicalValue: e.canonicalValue.toLowerCase(),
-          displayName: e.canonicalValue,
-        },
-        update: { updatedAt: new Date() },
-      });
-      await prisma.evidenceEntity
-        .create({
-          data: {
-            evidenceId: ev.id,
-            entityId: entity.id,
-            originalText: e.originalText.slice(0, 500),
-            contextText: e.context.slice(0, 1000),
-            offsetStart: e.offset,
-            confidence: e.confidence,
-            method: e.method,
-            origin: 'DETERMINISTIC_EXTRACTION',
-          },
-        })
-        .catch(() => {
-          /* unique violation => already linked */
-        });
-      progress.entitiesExtracted += 1;
-    }
-    await prisma.evidence.update({ where: { id: ev.id }, data: { analysisStatus: 'ENTITIES_EXTRACTED' } });
+    progress.entitiesExtracted += await extractEntitiesForEvidence(
+      search.projectId,
+      ev.id,
+      text,
+      ev.result.url ?? null,
+    );
   }
 
   // ── 7. source-quality assessment (§12) ─────────────────────────────────────
@@ -449,10 +420,32 @@ export async function runResearchRun(
   return progress;
 }
 
-function buildScope(connectorId: string, project: { objective?: string | null }): Record<string, string> | undefined {
-  // RSS needs feed URLs; those are project-configured. Placeholder passthrough.
-  void project;
-  if (connectorId === 'rss') return {}; // orchestrator does not invent feeds
+/**
+ * Translate a project's per-connector scope config (§4, §17) into the
+ * `scope` map a connector's search() understands. Nothing is invented — a
+ * connector that needs scope it wasn't given (e.g. RSS with no feeds) returns
+ * an empty result set with an explanatory notice.
+ */
+function buildScope(
+  connectorId: string,
+  project: { connectorScopesJson?: unknown },
+): Record<string, string> | undefined {
+  const scopes = (project.connectorScopesJson ?? {}) as Record<string, Record<string, unknown>>;
+  const cfg = scopes[connectorId];
+  if (connectorId === 'rss') {
+    const feeds = Array.isArray(cfg?.feeds) ? (cfg!.feeds as string[]) : [];
+    return { feeds: feeds.join(',') };
+  }
+  if (connectorId === 'reddit') {
+    const subs = Array.isArray(cfg?.subreddits) ? (cfg!.subreddits as string[]) : [];
+    return subs.length ? { subreddit: subs.join('+') } : undefined;
+  }
+  if (connectorId === 'github' && typeof cfg?.type === 'string') return { type: cfg.type as string };
+  if (connectorId === 'youtube' && typeof cfg?.type === 'string') return { type: cfg.type as string };
+  if (connectorId === 'hackernews' && typeof cfg?.tags === 'string') return { tags: cfg.tags as string };
+  if (connectorId === 'facebook-graph' && Array.isArray(cfg?.pageIds) && cfg!.pageIds.length) {
+    return { pageId: String((cfg!.pageIds as string[])[0]) };
+  }
   return undefined;
 }
 
@@ -472,6 +465,86 @@ const PLATFORM_HOSTS = new Set([
   'web.archive.org', 'doi.org', 'google.com', 'goo.gl', 'bit.ly', 'medium.com', 'substack.com',
   'statcounter.com', 'gs.statcounter.com', 'creativecommons.org', 'gnu.org', 'w3.org',
 ]);
+const SUBJECT_TYPE_MAP: Record<string, string> = {
+  PERSON: 'PERSON',
+  ORGANIZATION: 'ORGANIZATION',
+  COMPANY: 'COMPANY',
+  BRAND: 'BRAND',
+  PRODUCT: 'PRODUCT',
+  DOMAIN: 'DOMAIN',
+  USERNAME: 'USERNAME',
+};
+
+/** Create/keep an Entity for the search subject (skips Boolean/complex queries). */
+export async function seedSubjectEntity(
+  projectId: string,
+  originalQuery: string,
+  subjectType: string | null,
+): Promise<void> {
+  const q = originalQuery.trim().replace(/^["']|["']$/g, '');
+  if (!q || q.length > 80) return;
+  if (/\b(AND|OR|NOT)\b|["()]|site:|-\w+\.\w/.test(q)) return; // not a plain name
+  const type = subjectType ? SUBJECT_TYPE_MAP[subjectType.toUpperCase()] ?? null : null;
+  if (!type) return; // only seed when the user specified a subject type
+  await prisma.entity.upsert({
+    where: { projectId_type_canonicalValue: { projectId, type, canonicalValue: q.toLowerCase() } },
+    create: {
+      projectId,
+      type,
+      canonicalValue: q.toLowerCase(),
+      displayName: q,
+      resolutionConfidence: 'MEDIUM',
+      aliases: { create: { value: q, kind: 'NAME', source: 'USER' } },
+    },
+    update: { resolutionConfidence: 'MEDIUM' },
+  });
+}
+
+/**
+ * Deterministic entity extraction for a single evidence record (shared by the
+ * search pipeline and the document-ingest pipeline). Returns the number of
+ * evidence↔entity links created.
+ */
+export async function extractEntitiesForEvidence(
+  projectId: string,
+  evidenceId: string,
+  text: string,
+  selfUrl: string | null,
+): Promise<number> {
+  const selfDomain = selfUrl ? canonicalizeUrl(selfUrl)?.registrableDomain ?? null : null;
+  const entities = extractEntitiesHeuristic(text)
+    .filter((e) => !isNoiseEntity(e.type, e.canonicalValue, selfDomain))
+    .slice(0, 60);
+  let links = 0;
+  for (const e of entities) {
+    const entity = await prisma.entity.upsert({
+      where: {
+        projectId_type_canonicalValue: { projectId, type: e.type, canonicalValue: e.canonicalValue.toLowerCase() },
+      },
+      create: { projectId, type: e.type, canonicalValue: e.canonicalValue.toLowerCase(), displayName: e.canonicalValue },
+      update: { updatedAt: new Date() },
+    });
+    const created = await prisma.evidenceEntity
+      .create({
+        data: {
+          evidenceId,
+          entityId: entity.id,
+          originalText: e.originalText.slice(0, 500),
+          contextText: e.context.slice(0, 1000),
+          offsetStart: e.offset,
+          confidence: e.confidence,
+          method: e.method,
+          origin: 'DETERMINISTIC_EXTRACTION',
+        },
+      })
+      .then(() => true)
+      .catch(() => false);
+    if (created) links++;
+  }
+  await prisma.evidence.update({ where: { id: evidenceId }, data: { analysisStatus: 'ENTITIES_EXTRACTED' } });
+  return links;
+}
+
 function isNoiseEntity(type: string, value: string, selfDomain: string | null): boolean {
   if (type === 'DOMAIN' || type === 'URL') {
     const host = value.replace(/^https?:\/\//, '').split('/')[0]?.toLowerCase() ?? value;
