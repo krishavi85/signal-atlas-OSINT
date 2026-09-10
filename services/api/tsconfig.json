@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "types": ["node"],
+    "composite": false
+  },
+  "references": [{ "path": "../../packages/core" }, { "path": "../../packages/connectors" }],
+  "include": ["src/**/*"],
+  "exclude": ["src/**/*.test.ts", "dist", "prisma"]
+}

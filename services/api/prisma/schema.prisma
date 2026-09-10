@@ -1,0 +1,742 @@
+// OSINT Platform — data model (spec §36).
+//
+// Datasource is SQLite for zero-setup local development. For production switch
+// `provider` to "postgresql" and set DATABASE_URL accordingly; the model is
+// written to be portable (no SQLite-only features; enums represented as checked
+// strings; JSON via the Json type which Postgres supports natively).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Identity & access
+// ─────────────────────────────────────────────────────────────────────────────
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  displayName   String
+  passwordHash  String
+  role          String   @default("USER") // USER | ADMIN
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  disabledAt    DateTime?
+
+  memberships   ProjectMember[]
+  sessions      AuthSession[]
+  auditLogs     AuditLog[]
+  notes         Note[]
+  ownedProjects Project[]       @relation("ProjectOwner")
+
+  @@map("users")
+}
+
+model AuthSession {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokenHash String   @unique
+  userAgent        String?
+  ip               String?
+  createdAt        DateTime @default(now())
+  expiresAt        DateTime
+  revokedAt        DateTime?
+
+  @@index([userId])
+  @@map("auth_sessions")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Projects / cases (spec §21)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  objective   String?
+  status      String   @default("ACTIVE") // ACTIVE | PAUSED | ARCHIVED
+  // default research scope
+  defaultLanguages String @default("en")   // comma-separated
+  dateRangeStart   DateTime?
+  dateRangeEnd     DateTime?
+  retentionDays    Int?                    // null => keep indefinitely (spec §30)
+  ownerId     String
+  owner       User     @relation("ProjectOwner", fields: [ownerId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members        ProjectMember[]
+  searches       Search[]
+  evidence       Evidence[]
+  documents      Document[]
+  entities       Entity[]
+  relationships  Relationship[]
+  claims         Claim[]
+  timelineEvents TimelineEvent[]
+  monitoringJobs MonitoringJob[]
+  media          MediaAsset[]
+  notes          Note[]
+  reports        Report[]
+  jobs           Job[]
+  auditLogs      AuditLog[]
+
+  @@index([ownerId])
+  @@map("projects")
+}
+
+model ProjectMember {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String   @default("VIEWER") // OWNER | EDITOR | VIEWER
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@map("project_members")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Connectors & health (spec §31, §32)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Connector {
+  id            String   @id                // matches Connector.id in code, e.g. "wikipedia"
+  displayName   String
+  category      String
+  enabled       Boolean  @default(true)
+  // encrypted per-connector credentials (AES-256-GCM); never returned to client
+  credentialsEnc String?
+  configJson    Json?                        // non-secret connector config
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  healthChecks  ConnectorHealthCheck[]
+  searchRuns    SearchRun[]
+  evidence      Evidence[]
+  monitoringJobs MonitoringJob[]
+
+  @@map("connectors")
+}
+
+model ConnectorHealthCheck {
+  id                String   @id @default(cuid())
+  connectorId       String
+  connector         Connector @relation(fields: [connectorId], references: [id], onDelete: Cascade)
+  state             String    // ONLINE | DEGRADED | OFFLINE | AUTH_REQUIRED | RATE_LIMITED | MISCONFIGURED | NOT_CONFIGURED
+  latencyMs         Int?
+  lastSuccessAt     DateTime?
+  lastError         String?
+  requestsRemaining Int?
+  message           String
+  checkedAt         DateTime  @default(now())
+
+  @@index([connectorId, checkedAt])
+  @@map("connector_health")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Search: history, queries, per-connector runs (spec §2, §5, §33)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Search {
+  id           String   @id @default(cuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // the human/original request
+  originalQuery String
+  subjectType  String?  // PERSON | ORGANIZATION | COMPANY | ...
+  objective    String?
+  dateAfter    DateTime?
+  dateBefore   DateTime?
+  languages    String   @default("en")
+  depth        String   @default("STANDARD") // QUICK | STANDARD | DEEP
+  requestedConnectors Json?  // string[] or null => all effective
+  status       String   @default("PLANNED")  // PLANNED | RUNNING | PARTIAL | COMPLETED | FAILED | CANCELLED
+  jobId        String?
+  createdAt    DateTime @default(now())
+  completedAt  DateTime?
+
+  queries    Query[]
+  runs       SearchRun[]
+  evidence   Evidence[]
+
+  @@index([projectId, createdAt])
+  @@map("searches")
+}
+
+model Query {
+  id          String   @id @default(cuid())
+  searchId    String
+  search      Search   @relation(fields: [searchId], references: [id], onDelete: Cascade)
+  text        String
+  kind        String   // ORIGINAL | QUOTED_EXACT | ALIAS | DOMAIN | SOCIAL_HANDLE | HASHTAG | NEWS | SITE_SCOPED | SPELLING_VARIANT | AI_SUGGESTED
+  rationale   String
+  generatedBy String   @default("DETERMINISTIC") // DETERMINISTIC | AI | USER
+  executed    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  runs SearchRun[]
+
+  @@index([searchId])
+  @@map("queries")
+}
+
+model SearchRun {
+  id           String   @id @default(cuid())
+  searchId     String
+  search       Search   @relation(fields: [searchId], references: [id], onDelete: Cascade)
+  queryId      String?
+  query        Query?   @relation(fields: [queryId], references: [id], onDelete: SetNull)
+  connectorId  String
+  connector    Connector @relation(fields: [connectorId], references: [id])
+  status       String   // QUEUED | RUNNING | COMPLETED | SKIPPED | FAILED | RATE_LIMITED
+  skippedReason String?  // e.g. "NOT_CONFIGURED", "capability not supported"
+  httpRequests Int      @default(0)
+  rawHitCount  Int      @default(0)
+  uniqueCount  Int      @default(0)
+  evidenceCount Int     @default(0)
+  notices      Json?    // string[]
+  error        String?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  createdAt    DateTime @default(now())
+
+  @@index([searchId])
+  @@index([connectorId])
+  @@map("search_runs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sources & documents
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Source {
+  id                 String   @id @default(cuid())
+  // a source is a publisher/domain/platform account, not a single page
+  kind               String   // DOMAIN | PLATFORM_ACCOUNT | PUBLICATION | GOV_REGISTRY | DATASET | USER_UPLOAD
+  label              String
+  registrableDomain  String?
+  platform           String?
+  url                String?
+  // source-quality assessment (spec §12), recomputed as evidence accrues
+  tier               String?  // PRIMARY_OFFICIAL | ESTABLISHED_PUBLICATION | ...
+  qualityScore       Float?
+  qualityReasons     Json?
+  firstSeenAt        DateTime @default(now())
+  lastSeenAt         DateTime @default(now())
+
+  evidence Evidence[]
+
+  @@unique([kind, label])
+  @@index([registrableDomain])
+  @@map("sources")
+}
+
+model Document {
+  id           String   @id @default(cuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind         String   // PDF | DOCX | TXT | CSV | JSON | HTML
+  originalName String
+  storageKey   String   // key in the object store
+  byteSize     Int
+  sha256       String
+  uploadedById String?
+  extractedText String?
+  metadataJson Json?
+  status       String   @default("PENDING") // PENDING | PROCESSED | ERROR
+  error        String?
+  createdAt    DateTime @default(now())
+
+  evidence Evidence[]
+
+  @@index([projectId])
+  @@index([sha256])
+  @@map("documents")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Evidence (spec §9) — the spine of the platform
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Evidence {
+  // immutable human-quotable id: EVIDENCE-YYYY-NNNNNN
+  id             String   @id
+  year           Int
+  seq            Int
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // provenance
+  sourceId       String?
+  source         Source?  @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  documentId     String?
+  document       Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  connectorId    String
+  connector      Connector @relation(fields: [connectorId], references: [id])
+  searchId       String?
+  search         Search?  @relation(fields: [searchId], references: [id], onDelete: SetNull)
+  discoveryQuery String
+
+  sourcePlatform String
+  url            String?
+  canonicalUrl   String?
+  title          String?
+  author         String?
+  publishedAt    DateTime?
+  retrievedAt    DateTime
+  excerpt        String?
+  fullText       String?
+  language       String?
+  rawMetadata    Json
+  mediaJson      Json?
+  screenshotKey  String?
+
+  // integrity
+  contentHash    String
+  simhash        String?
+
+  // dedup (spec §18)
+  isDuplicate    Boolean  @default(false)
+  duplicateOfId  String?
+  duplicateOf    Evidence? @relation("EvidenceDuplicates", fields: [duplicateOfId], references: [id], onDelete: SetNull)
+  duplicates     Evidence[] @relation("EvidenceDuplicates")
+  duplicateReason String?
+  clusterId      String?
+
+  analysisStatus     String @default("UNPROCESSED")
+  verificationStatus String @default("UNVERIFIED")
+
+  createdAt      DateTime @default(now())
+
+  entities      EvidenceEntity[]
+  claimLinks    ClaimEvidence[]
+  timelineLinks TimelineEvent[]
+
+  @@unique([year, seq])
+  @@index([projectId, createdAt])
+  @@index([contentHash])
+  @@index([canonicalUrl])
+  @@index([clusterId])
+  @@map("evidence")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Entities (spec §6) & resolution (spec §7)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Entity {
+  id             String   @id @default(cuid())
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type           String   // PERSON | ORGANIZATION | COMPANY | ...
+  canonicalValue String
+  displayName    String
+  // resolution
+  resolutionConfidence String @default("LOW") // VERY_LOW | LOW | MEDIUM | HIGH | VERIFIED
+  mergedIntoId   String?
+  mergedInto     Entity?  @relation("EntityMerge", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedChildren Entity[] @relation("EntityMerge")
+  attributesJson Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  aliases        EntityAlias[]
+  evidenceLinks  EvidenceEntity[]
+  relationshipsFrom Relationship[] @relation("RelFrom")
+  relationshipsTo   Relationship[] @relation("RelTo")
+  mergeLog       EntityMergeLog[]
+
+  @@unique([projectId, type, canonicalValue])
+  @@index([projectId, type])
+  @@map("entities")
+}
+
+model EntityAlias {
+  id        String  @id @default(cuid())
+  entityId  String
+  entity    Entity  @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  value     String
+  kind      String  @default("NAME") // NAME | USERNAME | DOMAIN | HANDLE | LEGAL_NAME | ABBREVIATION
+  source    String  @default("EXTRACTED") // EXTRACTED | USER | AI
+  createdAt DateTime @default(now())
+
+  @@unique([entityId, value, kind])
+  @@map("entity_aliases")
+}
+
+model EvidenceEntity {
+  id          String   @id @default(cuid())
+  evidenceId  String
+  evidence    Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  entityId    String
+  entity      Entity   @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  originalText String
+  contextText String
+  offsetStart Int?
+  confidence  Float
+  method      String   // regex | gazetteer | ai
+  origin      String   @default("DETERMINISTIC_EXTRACTION")
+  createdAt   DateTime @default(now())
+
+  @@unique([evidenceId, entityId, originalText])
+  @@index([entityId])
+  @@map("evidence_entities")
+}
+
+model EntityMergeLog {
+  id           String   @id @default(cuid())
+  entityId     String
+  entity       Entity   @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  action       String   // MERGE | UNMERGE
+  otherEntityId String
+  reason       String
+  score        Float?
+  factorsJson  Json?
+  performedBy  String   // userId or "SYSTEM"
+  reversible   Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  @@index([entityId])
+  @@map("entity_merge_log")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Relationships (spec §8)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Relationship {
+  id         String   @id @default(cuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fromId     String
+  from       Entity   @relation("RelFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  toId       String
+  to         Entity   @relation("RelTo", fields: [toId], references: [id], onDelete: Cascade)
+  type       String   // WORKS_FOR | MENTIONED_BY | OWNS | LINKS_TO | POSTED_BY | ASSOCIATED_WITH | ATTENDED | LOCATED_IN | REFERENCES | USES_USERNAME | SHARES_DOMAIN | MENTIONED_WITH
+  directed   Boolean  @default(true)
+  // every edge must be evidence-traceable (spec §8)
+  evidenceIds Json     // string[] of Evidence ids
+  confidence  String  @default("LOW")
+  note        String?
+  createdBy   String   @default("SYSTEM")
+  createdAt   DateTime @default(now())
+
+  @@unique([projectId, fromId, toId, type])
+  @@index([projectId])
+  @@map("relationships")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Claims (spec §10) & corroboration (spec §11)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Claim {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  subject     String
+  predicate   String
+  object      String
+  claimDate   DateTime?
+  text        String   // the claim rendered as a sentence
+  epistemicTag String  @default("CLAIM") // FACT | SOURCE | CLAIM | INFERENCE | HYPOTHESIS | UNKNOWN
+  corroboration String @default("UNVERIFIED") // SINGLE_SOURCE | MULTIPLE_SOURCES | INDEPENDENTLY_CORROBORATED | CONTRADICTED | UNVERIFIED | OUTDATED
+  confidenceScore Float @default(0)
+  confidenceLevel String @default("VERY_LOW")
+  confidenceFactorsJson Json?
+  verificationStatus String @default("UNVERIFIED")
+  createdBy   String   @default("SYSTEM")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  evidenceLinks   ClaimEvidence[]
+  contradictionsA Contradiction[] @relation("ContradictionA")
+  contradictionsB Contradiction[] @relation("ContradictionB")
+
+  @@index([projectId])
+  @@map("claims")
+}
+
+model ClaimEvidence {
+  id         String   @id @default(cuid())
+  claimId    String
+  claim      Claim    @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  evidenceId String
+  evidence   Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  stance     String   // SUPPORTS | CONTRADICTS | CONTEXT
+  excerpt    String?
+  createdAt  DateTime @default(now())
+
+  @@unique([claimId, evidenceId])
+  @@index([evidenceId])
+  @@map("claim_evidence")
+}
+
+model Contradiction {
+  id          String   @id @default(cuid())
+  projectId   String
+  claimAId    String
+  claimA      Claim    @relation("ContradictionA", fields: [claimAId], references: [id], onDelete: Cascade)
+  claimBId    String
+  claimB      Claim    @relation("ContradictionB", fields: [claimBId], references: [id], onDelete: Cascade)
+  explanation String
+  status      String   @default("OPEN") // OPEN | RESOLVED_A | RESOLVED_B | UNRESOLVABLE | DISMISSED
+  resolutionNote String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([claimAId, claimBId])
+  @@index([projectId])
+  @@map("contradictions")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Timeline (spec §15)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model TimelineEvent {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  occurredAt  DateTime
+  precision   String   @default("DAY") // MINUTE | HOUR | DAY | MONTH | YEAR
+  title       String
+  description String?
+  eventType   String   @default("MENTION") // MENTION | PUBLICATION | ANNOUNCEMENT | POST | EVENT | REGISTRATION | CHANGE
+  entityId    String?
+  evidenceId  String?
+  evidence    Evidence? @relation(fields: [evidenceId], references: [id], onDelete: SetNull)
+  confidenceLevel String @default("LOW")
+  createdAt   DateTime @default(now())
+
+  @@index([projectId, occurredAt])
+  @@map("timeline_events")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Monitoring (spec §16, §17)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model MonitoringJob {
+  id            String   @id @default(cuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name          String
+  query         String
+  connectorId   String?
+  connector     Connector? @relation(fields: [connectorId], references: [id], onDelete: SetNull)
+  connectorIds  Json?    // string[] — if null, use all effective search connectors
+  scheduleCron  String   // e.g. "0 */6 * * *"
+  languages     String   @default("en")
+  enabled       Boolean  @default(true)
+  lastRunAt     DateTime?
+  lastSuccessAt DateTime?
+  nextRunAt     DateTime?
+  lastError     String?
+  rateLimitState Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  results MonitoringResult[]
+
+  @@index([projectId])
+  @@index([enabled, nextRunAt])
+  @@map("monitoring_jobs")
+}
+
+model MonitoringResult {
+  id              String   @id @default(cuid())
+  monitoringJobId String
+  monitoringJob   MonitoringJob @relation(fields: [monitoringJobId], references: [id], onDelete: Cascade)
+  runAt           DateTime @default(now())
+  newEvidenceCount Int     @default(0)
+  changedCount    Int      @default(0)
+  suppressedDuplicateCount Int @default(0)
+  evidenceIds     Json?    // string[]
+  summary         String
+  error           String?
+
+  @@index([monitoringJobId, runAt])
+  @@map("monitoring_results")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Media (spec §19)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model MediaAsset {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind        String   // IMAGE | VIDEO | AUDIO | DOCUMENT
+  sourceUrl   String?
+  storageKey  String?
+  sha256      String?
+  perceptualHash String?
+  width       Int?
+  height      Int?
+  durationSec Float?
+  exifJson    Json?
+  ocrText     String?
+  transcript  String?
+  evidenceId  String?
+  status      String   @default("PENDING") // PENDING | PROCESSED | SKIPPED | ERROR
+  note        String?
+  createdAt   DateTime @default(now())
+
+  @@index([projectId])
+  @@index([sha256])
+  @@map("media")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Notebook / notes (spec §22)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Note {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id])
+  kind        String   @default("NOTE") // NOTE | HYPOTHESIS | QUESTION | TASK | CONCLUSION | PINNED_FINDING
+  title       String?
+  body        String
+  // human vs AI conclusions kept distinct (spec §22)
+  origin      String   @default("HUMAN_ANALYST")
+  status      String   @default("OPEN") // OPEN | RESOLVED | DISMISSED
+  referencedEvidenceIds Json?  // string[]
+  referencedEntityIds   Json?  // string[]
+  tags        Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId, kind])
+  @@map("notes")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reports (spec §28)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Report {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title       String
+  format      String   // PDF | DOCX | HTML | MARKDOWN | JSON | CSV
+  status      String   @default("QUEUED") // QUEUED | RUNNING | COMPLETED | FAILED
+  storageKey  String?
+  checksum    String?
+  paramsJson  Json?
+  sectionsJson Json?    // structured report content w/ evidence references
+  generatedById String?
+  error       String?
+  createdAt   DateTime @default(now())
+  completedAt DateTime?
+
+  @@index([projectId])
+  @@map("reports")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Jobs (spec §37)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Job {
+  id          String   @id @default(cuid())
+  projectId   String?
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type        String   // RESEARCH_RUN | CONNECTOR_HEALTH | DOCUMENT_INGEST | MONITORING_RUN | REPORT_GENERATE | AI_ANALYSIS
+  status      String   @default("QUEUED") // QUEUED | RUNNING | PAUSED | COMPLETED | PARTIAL | FAILED | CANCELLED
+  priority    Int      @default(0)
+  payloadJson Json
+  progressJson Json?   // { sourcesPlanned, sourcesCompleted, resultsDiscovered, uniqueResults, evidenceRecords, entitiesExtracted, claimsExtracted }
+  stepsJson   Json?    // per-step status for retry-without-restart
+  attempts    Int      @default(0)
+  maxAttempts Int      @default(3)
+  error       String?
+  lockedBy    String?
+  lockedAt    DateTime?
+  scheduledAt DateTime @default(now())
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status, scheduledAt])
+  @@index([projectId])
+  @@map("jobs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Audit log (spec §29) — append-only
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  projectId  String?
+  project    Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorLabel String   // "user:email" | "SYSTEM" | "JOB:<id>"
+  action     String   // SEARCH_EXECUTED | CONNECTOR_USED | EVIDENCE_ADDED | EVIDENCE_REMOVED | ENTITY_MERGED | ENTITY_SEPARATED | AI_ANALYSIS_EXECUTED | REPORT_GENERATED | USER_MODIFICATION | ...
+  targetType String?
+  targetId   String?
+  summary    String
+  metadataJson Json?
+  createdAt  DateTime @default(now())
+
+  @@index([projectId, createdAt])
+  @@index([action])
+  @@map("audit_logs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Supporting: response cache (spec §39), AI usage / cost (spec §43),
+// evidence id sequence
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ResponseCache {
+  key        String   @id
+  connectorId String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([expiresAt])
+  @@map("response_cache")
+}
+
+model AiUsage {
+  id         String   @id @default(cuid())
+  projectId  String?
+  provider   String
+  model      String
+  operation  String   // EXTRACT | SYNTH | EMBED | EXPAND
+  inputTokens Int     @default(0)
+  outputTokens Int    @default(0)
+  estimatedCostUsd Float @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("ai_usage")
+}
+
+model Counter {
+  name  String @id  // e.g. "evidence-2026"
+  value Int    @default(0)
+
+  @@map("counters")
+}
