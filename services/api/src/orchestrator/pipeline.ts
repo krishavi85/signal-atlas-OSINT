@@ -16,6 +16,10 @@ import { audit } from '../modules/audit.js';
 import { nextEvidenceId } from '../lib/ids.js';
 import { getReport, makeConnectorContext, registry } from '../connectors/runtime.js';
 import { planQueries } from './QueryPlanner.js';
+import { autoResolveProject } from './EntityResolver.js';
+import { buildRelationshipsForProject } from './RelationshipBuilder.js';
+import { runClaimEngine } from './ClaimEngine.js';
+import { buildTimelineForProject } from './TimelineEngine.js';
 
 export interface ResearchProgress {
   phase:
@@ -25,6 +29,10 @@ export interface ResearchProgress {
     | 'PERSISTING_EVIDENCE'
     | 'EXTRACTING_ENTITIES'
     | 'SOURCE_QUALITY'
+    | 'RESOLVING_ENTITIES'
+    | 'CORRELATING'
+    | 'EXTRACTING_CLAIMS'
+    | 'BUILDING_TIMELINE'
     | 'DONE';
   sourcesPlanned: number;
   sourcesCompleted: number;
@@ -325,7 +333,10 @@ export async function runResearchRun(
     if (ev.isDuplicate) continue;
     const text = [ev.result.title, ev.result.excerpt, ev.result.fullText].filter(Boolean).join('\n\n');
     if (!text) continue;
-    const entities = extractEntitiesHeuristic(text).slice(0, 60);
+    const selfDomain = ev.result.url ? canonicalizeUrl(ev.result.url)?.registrableDomain ?? null : null;
+    const entities = extractEntitiesHeuristic(text)
+      .filter((e) => !isNoiseEntity(e.type, e.canonicalValue, selfDomain))
+      .slice(0, 60);
     for (const e of entities) {
       const entity = await prisma.entity.upsert({
         where: {
@@ -369,7 +380,42 @@ export async function runResearchRun(
   await tick();
   await assessSourcesForSearch(search.projectId);
 
-  // ── 8. finalize ────────────────────────────────────────────────────────────
+  // ── 8. intelligence layer (§7, §8, §10, §11, §15, §45) ─────────────────────
+  progress.phase = 'RESOLVING_ENTITIES';
+  await tick();
+  try {
+    await autoResolveProject(search.projectId);
+  } catch (err) {
+    logger.warn({ err, searchId }, 'auto entity resolution failed (non-fatal)');
+  }
+
+  progress.phase = 'CORRELATING';
+  await tick();
+  try {
+    await buildRelationshipsForProject(search.projectId);
+  } catch (err) {
+    logger.warn({ err, searchId }, 'relationship builder failed (non-fatal)');
+  }
+
+  progress.phase = 'EXTRACTING_CLAIMS';
+  await tick();
+  try {
+    const claimResult = await runClaimEngine(search.projectId);
+    progress.claimsExtracted = claimResult.claimsExtracted;
+    await tick();
+  } catch (err) {
+    logger.warn({ err, searchId }, 'claim engine failed (non-fatal)');
+  }
+
+  progress.phase = 'BUILDING_TIMELINE';
+  await tick();
+  try {
+    await buildTimelineForProject(search.projectId);
+  } catch (err) {
+    logger.warn({ err, searchId }, 'timeline engine failed (non-fatal)');
+  }
+
+  // ── 9. finalize ────────────────────────────────────────────────────────────
   const anyFailed = await prisma.searchRun.count({ where: { searchId, status: 'FAILED' } });
   const anyCompleted = await prisma.searchRun.count({ where: { searchId, status: 'COMPLETED' } });
   const finalStatus = anyCompleted === 0 ? 'FAILED' : anyFailed > 0 ? 'PARTIAL' : 'COMPLETED';
@@ -412,6 +458,28 @@ function buildScope(connectorId: string, project: { objective?: string | null })
 
 function truncate(s: string, n: number): string {
   return s.length > n ? `${s.slice(0, n)}…` : s;
+}
+
+/**
+ * Filter out DOMAIN/URL/SOCIAL_ACCOUNT "entities" that are really infrastructure
+ * noise — the connector's own host, well-known platforms, CDNs, link shorteners —
+ * so the graph and claim engine focus on investigative subjects.
+ */
+const PLATFORM_HOSTS = new Set([
+  'wikipedia.org', 'wikimedia.org', 'wikidata.org', 'ycombinator.com', 'news.ycombinator.com',
+  'github.com', 'githubusercontent.com', 'reddit.com', 'redd.it', 'youtube.com', 'youtu.be',
+  'twitter.com', 'x.com', 't.co', 'facebook.com', 'fb.com', 'instagram.com', 'archive.org',
+  'web.archive.org', 'doi.org', 'google.com', 'goo.gl', 'bit.ly', 'medium.com', 'substack.com',
+  'statcounter.com', 'gs.statcounter.com', 'creativecommons.org', 'gnu.org', 'w3.org',
+]);
+function isNoiseEntity(type: string, value: string, selfDomain: string | null): boolean {
+  if (type === 'DOMAIN' || type === 'URL') {
+    const host = value.replace(/^https?:\/\//, '').split('/')[0]?.toLowerCase() ?? value;
+    const reg = host.split('.').slice(-2).join('.');
+    if (selfDomain && (host === selfDomain || reg === selfDomain)) return true;
+    if (PLATFORM_HOSTS.has(host) || PLATFORM_HOSTS.has(reg)) return true;
+  }
+  return false;
 }
 
 /** Recompute source tiers/scores from accumulated evidence for a project (§12). */

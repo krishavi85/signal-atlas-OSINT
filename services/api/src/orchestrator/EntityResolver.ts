@@ -1,4 +1,7 @@
 import { normalizeUsername } from '@osint/core';
+import { prisma } from '../db.js';
+import { audit } from '../modules/audit.js';
+import { logger } from '../logger.js';
 
 /**
  * Entity resolution scorer (§7).
@@ -121,6 +124,95 @@ function isAcronymOf(acronym: string, phrase: string): boolean {
     .map((w) => w[0]?.toUpperCase() ?? '')
     .join('');
   return initials === a;
+}
+
+/**
+ * Automatic entity-resolution pass for a project (§7).
+ *
+ * Conservative by design: only merges a pair when `scoreEntityMatch` returns
+ * `LIKELY_SAME` (score ≥ 0.85 AND a strong corroborating factor such as a shared
+ * domain/username/URL or identical canonical value). Name similarity alone never
+ * triggers a merge. Every merge is SYSTEM-attributed, logged, and reversible.
+ */
+export async function autoResolveProject(projectId: string, maxMerges = 25): Promise<number> {
+  const entities = await prisma.entity.findMany({
+    where: { projectId, mergedIntoId: null },
+    include: { aliases: true, _count: { select: { evidenceLinks: true } } },
+  });
+
+  // block by type, then by a coarse token so we don't compare everything
+  const blocks = new Map<string, typeof entities>();
+  for (const e of entities) {
+    const token = e.canonicalValue.replace(/[^a-z0-9]/gi, '').slice(0, 4).toLowerCase();
+    const key = `${e.type}:${token}`;
+    let arr = blocks.get(key);
+    if (!arr) {
+      arr = [];
+      blocks.set(key, arr);
+    }
+    arr.push(e);
+  }
+
+  const mergedAway = new Set<string>();
+  let merges = 0;
+
+  for (const block of blocks.values()) {
+    if (block.length < 2) continue;
+    for (let i = 0; i < block.length && merges < maxMerges; i++) {
+      for (let j = i + 1; j < block.length && merges < maxMerges; j++) {
+        const a = block[i]!;
+        const b = block[j]!;
+        if (mergedAway.has(a.id) || mergedAway.has(b.id)) continue;
+        const match = scoreEntityMatch(a, b);
+        if (match.recommendation !== 'LIKELY_SAME') continue;
+
+        // keep the entity with more evidence as the target
+        const [target, source] = a._count.evidenceLinks >= b._count.evidenceLinks ? [a, b] : [b, a];
+        try {
+          await prisma.$transaction(async (tx) => {
+            const links = await tx.evidenceEntity.findMany({ where: { entityId: source.id } });
+            for (const link of links) {
+              await tx.evidenceEntity
+                .update({ where: { id: link.id }, data: { entityId: target.id } })
+                .catch(async () => tx.evidenceEntity.delete({ where: { id: link.id } }).catch(() => {}));
+            }
+            await tx.entityAlias
+              .create({ data: { entityId: target.id, value: source.displayName, kind: 'NAME', source: 'AI' } })
+              .catch(() => {});
+            await tx.entity.update({ where: { id: source.id }, data: { mergedIntoId: target.id, resolutionConfidence: 'HIGH' } });
+            await tx.entityMergeLog.create({
+              data: {
+                entityId: target.id,
+                action: 'MERGE',
+                otherEntityId: source.id,
+                reason: `Automatic resolution: ${match.factors.map((f) => f.explanation).join('; ')}`,
+                score: match.score,
+                factorsJson: match.factors as object,
+                performedBy: 'SYSTEM',
+                reversible: true,
+              },
+            });
+          });
+          mergedAway.add(source.id);
+          merges++;
+        } catch (err) {
+          logger.warn({ err, projectId }, 'auto-merge failed');
+        }
+      }
+    }
+  }
+
+  if (merges > 0) {
+    await audit({
+      projectId,
+      actorLabel: 'SYSTEM',
+      action: 'ENTITY_MERGED',
+      targetType: 'project',
+      targetId: projectId,
+      summary: `Automatic entity resolution merged ${merges} pair(s) (LIKELY_SAME only; all reversible)`,
+    });
+  }
+  return merges;
 }
 
 /** Jaro-Winkler string similarity, 0..1. */

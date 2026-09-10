@@ -9,3 +9,5 @@ export * from './dedup.js';
 export * from './corroboration.js';
 export * from './ssrf.js';
 export * from './query-expansion.js';
+export * from './claims.js';
+export * from './contradiction.js';

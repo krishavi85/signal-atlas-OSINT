@@ -42,19 +42,21 @@ Legend: ✅ done · 🟡 partial (usable, gaps noted) · ⚪ scaffolded (interfa
 | Caching (search responses, fetched pages) (§39) | 🟡 | response cache w/ TTL done; page cache pending |
 | Rate limiting (per-provider, backoff, jitter, budgets) (§38) | 🟡 | token bucket + backoff done; budget enforcement partial |
 
-## Phase 3 — Intelligence
+## Phase 3 — Intelligence  🟡 mostly done, verified end-to-end
 
 | Item | State |
 |---|---|
-| Entity extraction (18 types, confidence, context) (§6) | 🟡 heuristic (regex/gazetteer); AI adapter wired, off by default |
-| Entity resolution (blocking, scored, reversible merge) (§7) | 🟡 scored matcher (Jaro-Winkler + identifier/acronym factors), merge-candidate API, reversible merge/unmerge w/ audit + merge log — done. Auto-blocking pass during ingest pending |
-| Relationship graph model + evidence-traceable edges (§8) | ⚪ schema done; builder + API partial |
-| Claim engine (subject/predicate/object, multi-evidence) (§10) | ⚪ schema + extractor stub |
-| Corroboration (single/multi/independent/contradicted) (§11) | ⚪ interface + independence heuristic |
-| Source quality scoring, explainable (§12) | ⚪ rubric defined |
-| Confidence model (factor-based, exposed) (§44) | 🟡 factor computation done; UI surfacing partial |
-| Contradiction engine (§45) | ⚪ interface |
-| Timeline engine (§15) | ⚪ schema + aggregation stub |
+| Entity extraction (18 types, confidence, context) (§6) | ✅ deterministic (regex/gazetteer) + TLD allowlist + prose-fragment / self-domain / platform-host filtering; runs in pipeline |
+| Entity resolution (blocking, scored, reversible merge) (§7) | ✅ Jaro-Winkler + identifier/acronym factors; auto-pass merges LIKELY_SAME only (strong factor required), SYSTEM-attributed + reversible + logged; manual merge-candidate API |
+| Relationship graph + evidence-traceable edges (§8) | ✅ RelationshipBuilder: co-mention (≥2 evidence) / posted-by / shares-domain, each edge stores its evidence ids; `/graph` + `/relationships` APIs; SVG graph UI |
+| Claim engine (subject/predicate/object, multi-evidence) (§10) | ✅ deterministic entity-anchored patterns; ClaimEvidence links w/ stance + excerpt. Shallow parsing — labelled heuristic |
+| Corroboration (single/multi/independent/contradicted) (§11) | ✅ per-claim independent-source counting (distinct domain ∧ cluster), classification, verification status |
+| Source quality scoring, explainable (§12) | ✅ tier + score + reasons, recomputed per search, surfaced in Overview |
+| Confidence model (factor-based, exposed) (§44) | ✅ 5–6 weighted factors per claim w/ explanations; "WHY?" panel renders them |
+| Contradiction engine (§45) | ✅ pairwise conflict detection; HIGH for numeric/date/single-value; rows left OPEN, analyst resolves (never auto-picked); UI controls |
+| Timeline engine (§15) | ✅ events from evidence dates + dated claims; zoom + type filter UI; idempotent rebuild, analyst events preserved |
+| Document ingestion (PDF/DOCX/CSV) (§20) | ⚪ `documents` table only |
+| Semantic search (§23) | ⚪ needs embeddings + vector store |
 
 ## Phase 4 — Social connectors (official APIs only)
 

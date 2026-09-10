@@ -15,6 +15,7 @@ import { searchRoutes } from './modules/search.routes.js';
 import { evidenceRoutes } from './modules/evidence.routes.js';
 import { entityRoutes } from './modules/entities.routes.js';
 import { jobRoutes } from './modules/jobs.routes.js';
+import { intelligenceRoutes } from './modules/intelligence.routes.js';
 import { dashboardRoutes } from './modules/dashboard.routes.js';
 import { sseRoutes } from './realtime/sse.js';
 import { registry } from './connectors/runtime.js';
@@ -64,10 +65,20 @@ export async function buildServer(): Promise<FastifyInstance> {
     jobDriver: env.JOB_DRIVER,
     notImplemented: [
       'AI synthesis & report generation (Phase 5/8)',
-      'Knowledge graph & timeline UI (Phase 6)',
-      'Monitoring engine (Phase 7)',
-      'Document ingestion pipeline (Phase 3)',
+      'Monitoring engine — scheduled runs & change detection (Phase 7)',
+      'Document ingestion pipeline — PDF/DOCX/CSV parsing (Phase 3 partial)',
+      'Media intelligence — OCR / transcripts / perceptual hashing (Phase 6)',
       'Semantic / vector search (needs embeddings + pgvector)',
+      'God Mode autonomous orchestrator (Phase 10)',
+    ],
+    implemented: [
+      'Multi-source search orchestration + query planning + coverage reporting',
+      'Evidence model with immutable IDs, content hashing, dedup + syndication clustering',
+      'Deterministic entity extraction + scored/reversible entity resolution',
+      'Evidence-traceable relationship graph',
+      'Deterministic claim extraction + factor-based corroboration + contradiction detection',
+      'Timeline derivation from evidence dates + dated claims',
+      'Explainable confidence ("WHY?") with exposed factors',
     ],
   }));
 
@@ -79,6 +90,7 @@ export async function buildServer(): Promise<FastifyInstance> {
       await api.register(searchRoutes);
       await api.register(evidenceRoutes);
       await api.register(entityRoutes);
+      await api.register(intelligenceRoutes);
       await api.register(jobRoutes);
       await api.register(dashboardRoutes);
       await api.register(sseRoutes);

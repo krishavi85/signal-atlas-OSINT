@@ -93,6 +93,29 @@ function pushMatches(
 
 const COMMON_FILE_TLDS = new Set(['png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'mp4', 'svg']);
 
+/** Frequent English words that collide with ccTLDs when a sentence is split oddly. */
+const COMMON_WORDS = new Set([
+  'for', 'door', 'doctor', 'agencies', 'media', 'data', 'info', 'this', 'that', 'with', 'from',
+  'into', 'over', 'under', 'about', 'after', 'before', 'where', 'which', 'while', 'would', 'could',
+  'should', 'other', 'their', 'there', 'these', 'those', 'here', 'more', 'also', 'been', 'were',
+  'said', 'such', 'than', 'then', 'them', 'they', 'what', 'when', 'will', 'your', 'auto', 'user',
+]);
+
+/**
+ * Allowlist of real TLDs. Prose like "...move it. Unless..." or "shrinking.https"
+ * would otherwise be mis-read as domains by a permissive regex. This is not the
+ * full IANA list — it covers the gTLDs and ccTLDs that actually appear in OSINT
+ * material. Extend as needed; unknown suffixes are simply not treated as domains.
+ */
+const VALID_TLDS = new Set([
+  'com', 'org', 'net', 'io', 'co', 'gov', 'edu', 'mil', 'int', 'info', 'biz', 'name', 'pro',
+  'dev', 'app', 'ai', 'xyz', 'tech', 'online', 'site', 'store', 'blog', 'news', 'media', 'cloud',
+  'us', 'uk', 'ca', 'au', 'nz', 'de', 'fr', 'nl', 'be', 'es', 'it', 'pt', 'ie', 'se', 'no', 'fi',
+  'dk', 'pl', 'cz', 'at', 'ch', 'ru', 'ua', 'in', 'jp', 'cn', 'kr', 'sg', 'hk', 'tw', 'br', 'mx',
+  'ar', 'cl', 'za', 'ng', 'ke', 'eg', 'ae', 'sa', 'il', 'tr', 'gr', 'ro', 'hu', 'bg', 'hr', 'rs',
+  'sk', 'si', 'lt', 'lv', 'ee', 'is', 'lu', 'mt', 'cy', 'eu', 'tv', 'me', 'cc', 'to', 'gg', 'im',
+]);
+
 /**
  * Extract structured entities from a block of text. Pure, synchronous,
  * side-effect free. Deduplicates on (type, canonicalValue) keeping the
@@ -122,9 +145,16 @@ export function extractEntitiesHeuristic(text: string): ExtractedEntity[] {
   DOMAIN_RE.lastIndex = 0;
   let dm: RegExpExecArray | null;
   while ((dm = DOMAIN_RE.exec(text)) !== null) {
-    const d = dm[0].toLowerCase();
+    const original = dm[0];
+    const d = original.toLowerCase();
     const tld = d.split('.').pop()!;
-    if (COMMON_FILE_TLDS.has(tld)) continue;
+    if (COMMON_FILE_TLDS.has(tld) || !VALID_TLDS.has(tld)) continue;
+    const labels = d.split('.');
+    if (labels.length < 2 || labels.some((l) => l.length === 0)) continue;
+    // sentence-boundary false positive: "...the door.In 2013..." -> "door.In"
+    if (/[a-z]\.[A-Z]/.test(original)) continue;
+    // short ccTLD + a common English word as the SLD is almost always prose
+    if (labels.length === 2 && tld.length === 2 && COMMON_WORDS.has(labels[0]!)) continue;
     const before = text.slice(Math.max(0, dm.index - 8), dm.index);
     if (before.includes('@') || before.endsWith('/') || before.endsWith('.')) continue;
     raw.push({

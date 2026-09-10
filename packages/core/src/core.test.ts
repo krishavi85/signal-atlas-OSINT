@@ -110,6 +110,14 @@ test('extractEntitiesHeuristic finds emails, urls, hashtags, handles, dates, com
   assert.ok(ents.every((e) => e.confidence > 0 && e.confidence <= 1));
 });
 
+test('extractEntitiesHeuristic: prose fragments are not mistaken for domains', () => {
+  const ents = extractEntitiesHeuristic(
+    'You should move it. Unless the plan changes, we ship in Q3. See acme.io for details and contact ops@acme.io.',
+  );
+  const domains = ents.filter((e) => e.type === 'DOMAIN').map((e) => e.canonicalValue);
+  assert.deepEqual(domains, ['acme.io']); // not "it.unless", not "q3.see"
+});
+
 // ── dedup engine ─────────────────────────────────────────────────────────────
 function nr(partial: Partial<NormalizedResult>): NormalizedResult {
   return {
