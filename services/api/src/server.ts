@@ -19,6 +19,7 @@ import { jobRoutes } from './modules/jobs.routes.js';
 import { intelligenceRoutes } from './modules/intelligence.routes.js';
 import { documentRoutes } from './modules/documents.routes.js';
 import { aiRoutes } from './modules/ai.routes.js';
+import { mediaRoutes } from './modules/media.routes.js';
 import { dashboardRoutes } from './modules/dashboard.routes.js';
 import { sseRoutes } from './realtime/sse.js';
 import { registry } from './connectors/runtime.js';
@@ -69,7 +70,8 @@ export async function buildServer(): Promise<FastifyInstance> {
     jobDriver: env.JOB_DRIVER,
     notImplemented: [
       'Monitoring engine — scheduled runs & change detection (Phase 7)',
-      'Media intelligence — OCR / transcripts / perceptual hashing (Phase 6)',
+      'Video / audio transcription (needs ffmpeg + a speech model — not bundled)',
+      'Reverse image search (needs a provider API key)',
       'PDF / DOCX report export (Markdown / HTML / JSON export works; Phase 8)',
       'Evidence-package zip export with checksums (Phase 8)',
       'God Mode autonomous orchestrator (Phase 10)',
@@ -82,6 +84,7 @@ export async function buildServer(): Promise<FastifyInstance> {
       'Deterministic claim extraction + factor-based corroboration + contradiction detection',
       'Timeline derivation from evidence dates + dated claims',
       'Document ingestion (PDF/DOCX/TXT/CSV/JSON/HTML)',
+      'Media intelligence — image metadata, EXIF/GPS, perceptual-hash duplicate detection; vision-model OCR/description when a multimodal model is configured',
       'Semantic search (when an embedding provider is configured)',
       'AI research analyst — evidence-grounded Q&A, AI query expansion, report generation (when an AI provider is configured); anti-hallucination citation validation',
       'Explainable confidence ("WHY?") with exposed factors',
@@ -99,6 +102,7 @@ export async function buildServer(): Promise<FastifyInstance> {
       await api.register(intelligenceRoutes);
       await api.register(documentRoutes);
       await api.register(aiRoutes);
+      await api.register(mediaRoutes);
       await api.register(jobRoutes);
       await api.register(dashboardRoutes);
       await api.register(sseRoutes);

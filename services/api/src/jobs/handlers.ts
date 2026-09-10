@@ -4,7 +4,8 @@ import { runResearchRun } from '../orchestrator/pipeline.js';
 import { ingestDocument } from '../orchestrator/DocumentIngest.js';
 import { backfillEmbeddings } from '../orchestrator/SemanticIndex.js';
 import { generateReport } from '../orchestrator/AIResearchEngine.js';
-import { registerJobHandler } from './runner.js';
+import { collectMediaForProject, processProjectMedia } from '../orchestrator/MediaEngine.js';
+import { enqueueJob, registerJobHandler } from './runner.js';
 
 /** Wire concrete job handlers into the runner. Called once at startup. */
 export function registerAllJobHandlers(): void {
@@ -30,12 +31,26 @@ export function registerAllJobHandlers(): void {
       ctx.signal,
     );
     const search = await prisma.search.findUnique({ where: { id: searchId } });
+    // collect media referenced by the new evidence and queue processing (§19)
+    if (search?.projectId) {
+      const n = await collectMediaForProject(search.projectId).catch(() => 0);
+      if (n > 0) await enqueueJob({ type: 'MEDIA_PROCESS', projectId: search.projectId, payload: { projectId: search.projectId } }).catch(() => {});
+    }
     return { status: search?.status === 'PARTIAL' ? 'PARTIAL' : 'COMPLETED', result: progress };
   });
 
   registerJobHandler('CONNECTOR_HEALTH', async () => {
     await checkAllConnectorHealth();
     return { status: 'COMPLETED' };
+  });
+
+  registerJobHandler('MEDIA_PROCESS', async (ctx) => {
+    const projectId = String(ctx.payload.projectId ?? '');
+    if (!projectId) throw new Error('MEDIA_PROCESS payload missing projectId');
+    await collectMediaForProject(projectId);
+    const result = await processProjectMedia(projectId, { vision: Boolean(ctx.payload.vision) });
+    await ctx.reportProgress(result as unknown as Record<string, unknown>);
+    return { status: result.errors > 0 && result.processed === 0 ? 'PARTIAL' : 'COMPLETED', result };
   });
 
   registerJobHandler('DOCUMENT_INGEST', async (ctx) => {

@@ -588,20 +588,34 @@ model MediaAsset {
   sourceUrl   String?
   storageKey  String?
   sha256      String?
+  format      String?
+  byteSize    Int?
   perceptualHash String?
   width       Int?
   height      Int?
   durationSec Float?
   exifJson    Json?
+  gpsLat      Float?
+  gpsLon      Float?
+  capturedAt  DateTime?
   ocrText     String?
+  visionText  String?   // description / visible-text extracted by a vision model
   transcript  String?
+  // perceptual-duplicate clustering (§18, §19)
+  clusterId     String?
+  duplicateOfId String?
+  duplicateOf   MediaAsset?  @relation("MediaDuplicates", fields: [duplicateOfId], references: [id], onDelete: SetNull)
+  duplicates    MediaAsset[] @relation("MediaDuplicates")
   evidenceId  String?
   status      String   @default("PENDING") // PENDING | PROCESSED | SKIPPED | ERROR
+  error       String?
   note        String?
+  processedAt DateTime?
   createdAt   DateTime @default(now())
 
-  @@index([projectId])
+  @@index([projectId, status])
   @@index([sha256])
+  @@index([perceptualHash])
   @@map("media")
 }
 

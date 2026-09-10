@@ -16,9 +16,16 @@ import { safeFetch } from '../lib/safeFetch.js';
 
 export type ModelRole = 'extract' | 'synth';
 
+export interface ChatImage {
+  mediaType: string; // "image/png" | "image/jpeg" | ...
+  dataBase64: string;
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+  /** attach images to a user message (requires a multimodal model) */
+  images?: ChatImage[];
 }
 
 export interface ChatRequest {
@@ -148,7 +155,14 @@ async function callOllama(baseUrl: string, model: string, req: ChatRequest, temp
       stream: false,
       options: { temperature, num_predict: maxTokens },
       format: req.json ? 'json' : undefined,
-      messages: [{ role: 'system', content: req.system }, ...req.messages],
+      messages: [
+        { role: 'system', content: req.system },
+        ...req.messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+          ...(m.images?.length ? { images: m.images.map((img) => img.dataBase64) } : {}),
+        })),
+      ],
     }),
     timeoutMs: 180_000,
   });
@@ -172,7 +186,18 @@ async function callAnthropic(apiKey: string, model: string, req: ChatRequest, te
       max_tokens: maxTokens,
       temperature,
       system: req.system + (req.json ? '\n\nRespond with a single valid JSON object and nothing else.' : ''),
-      messages: req.messages.map((m) => ({ role: m.role, content: m.content })),
+      messages: req.messages.map((m) => ({
+        role: m.role,
+        content: m.images?.length
+          ? [
+              ...m.images.map((img) => ({
+                type: 'image' as const,
+                source: { type: 'base64' as const, media_type: img.mediaType, data: img.dataBase64 },
+              })),
+              { type: 'text' as const, text: m.content },
+            ]
+          : m.content,
+      })),
     }),
     timeoutMs: 180_000,
   });
@@ -197,7 +222,21 @@ async function callOpenAI(apiKey: string, model: string, req: ChatRequest, tempe
       temperature,
       max_tokens: maxTokens,
       response_format: req.json ? { type: 'json_object' } : undefined,
-      messages: [{ role: 'system', content: req.system }, ...req.messages],
+      messages: [
+        { role: 'system', content: req.system },
+        ...req.messages.map((m) => ({
+          role: m.role,
+          content: m.images?.length
+            ? [
+                { type: 'text' as const, text: m.content },
+                ...m.images.map((img) => ({
+                  type: 'image_url' as const,
+                  image_url: { url: `data:${img.mediaType};base64,${img.dataBase64}` },
+                })),
+              ]
+            : m.content,
+        })),
+      ],
     }),
     timeoutMs: 180_000,
   });

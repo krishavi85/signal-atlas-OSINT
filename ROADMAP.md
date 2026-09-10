@@ -83,12 +83,18 @@ Legend: ✅ done · 🟡 partial (usable, gaps noted) · ⚪ scaffolded (interfa
 | Explainability "WHY?" (§47) | ✅ claim WHY panel (Phase 3) + report ungrounded-statement callouts + `citedEvidenceIds` on every AI output |
 | PDF / DOCX report export | ⚪ Phase 8 (MD/HTML/JSON done) |
 
-## Phase 6 — Visual intelligence
+## Phase 6 — Visual intelligence  ✅ (except video/audio transcription)
 
-Timeline view (§15) ✅ · connection graph (§8) ✅ · evidence viewer ✅ ·
-entity explorer ✅ · source explorer (Overview "top sources") 🟡.
-Remaining: media intelligence — image/video metadata, OCR, transcripts,
-perceptual-hash dup detection (§19). ❌ not started (`media` table exists).
+| Item | State |
+|---|---|
+| Timeline view (§15) | ✅ zoomable, type-filtered |
+| Connection graph (§8) | ✅ dependency-free SVG force layout, evidence-backed edges |
+| Evidence viewer / entity explorer / source explorer | ✅ |
+| Media intelligence (§19) — image format + dimensions, EXIF incl. GPS, perceptual-hash (dHash) duplicate detection + clustering | ✅ `MediaEngine`, auto-collected from evidence media refs + direct upload, `MEDIA_PROCESS` job, Media tab |
+| Media OCR / description | ✅ via a configured **multimodal** model (claude-*, gpt-4o, or an Ollama vision model); vision prompt forbids identifying people; honest unavailable otherwise |
+| Video / audio transcription | ⚪ not bundled — needs ffmpeg + a speech-to-text model; reported honestly as SKIPPED |
+| Reverse image search | ⚪ needs a provider API key (TinEye / Vision) |
+| **Facial identification / biometric matching** | ❌ **never built, by policy (§19, §30)** — no face code anywhere |
 
 ## Phase 7 — Monitoring
 

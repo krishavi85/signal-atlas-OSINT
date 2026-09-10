@@ -12,6 +12,7 @@ const { scoreEntityMatch, jaroWinkler } = await import('./orchestrator/EntityRes
 const { signAccessToken, verifyAccessToken, generateRefreshToken, hashRefreshToken } = await import('./auth/tokens.js');
 const { buildEvidenceContext, validateCitations } = await import('./ai/grounding.js');
 const { parseJsonLoose } = await import('./ai/chat.js');
+const { perceptualHash, hammingHex, isDuplicateImage, extractImageMeta } = await import('./lib/mediaExtract.js');
 
 test('crypto: AES-256-GCM round trip + tamper detection', () => {
   const enc = encryptSecret('super-secret-token');
@@ -112,4 +113,33 @@ test('parseJsonLoose handles fenced and trailing prose', () => {
   assert.deepEqual(parseJsonLoose('```json\n{"a":1}\n```'), { a: 1 });
   assert.deepEqual(parseJsonLoose('Here you go: {"queries":[]} hope that helps'), { queries: [] });
   assert.equal(parseJsonLoose('not json at all'), null);
+});
+
+test('media: perceptual hash detects a resized copy as duplicate, not an unrelated image', async () => {
+  const { Jimp } = await import('jimp');
+  const rgba = (r: number, g: number, b: number, a: number) => ((r << 24) | (g << 16) | (b << 8) | a) >>> 0;
+  const gradient = new Jimp({ width: 128, height: 128 });
+  for (let y = 0; y < 128; y++)
+    for (let x = 0; x < 128; x++) gradient.setPixelColor(rgba(x * 2, y * 2, (x + y) % 256, 255), x, y);
+  const solid = new Jimp({ width: 128, height: 128, color: 0x3366ccff });
+
+  const gradBuf = Buffer.from(await gradient.getBuffer('image/png'));
+  const gradSmall = gradient.clone().resize({ w: 64, h: 64 });
+  const gradSmallBuf = Buffer.from(await gradSmall.getBuffer('image/jpeg'));
+  const solidBuf = Buffer.from(await solid.getBuffer('image/png'));
+
+  const h1 = await perceptualHash(gradBuf);
+  const h2 = await perceptualHash(gradSmallBuf);
+  const h3 = await perceptualHash(solidBuf);
+  assert.ok(h1 && h2 && h3);
+  assert.ok(hammingHex(h1!, h2!) <= 6, `resized copy should be near, got ${hammingHex(h1!, h2!)}`);
+  assert.ok(hammingHex(h1!, h3!) > 12, `unrelated image should be far, got ${hammingHex(h1!, h3!)}`);
+  assert.equal(isDuplicateImage(h1, h2), true);
+  assert.equal(isDuplicateImage(h1, h3), false);
+
+  const meta = await extractImageMeta(gradBuf);
+  assert.equal(meta.width, 128);
+  assert.equal(meta.height, 128);
+  assert.equal(meta.gps, null);
+  assert.equal(meta.sha256.length, 64);
 });

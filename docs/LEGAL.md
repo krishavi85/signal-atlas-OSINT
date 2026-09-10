@@ -11,7 +11,10 @@ policy statements.
 - circumvent CAPTCHAs, rate limits, or anti-bot / bot-detection systems
 - access private messages or non-public account data
 - perform covert biometric identification or automated face matching to assert
-  that two people are the same individual
+  that two people are the same individual (there is **no face-detection or
+  facial-similarity code anywhere in the codebase**; the media pipeline extracts
+  metadata, EXIF/GPS, and perceptual **image** hashes only, and the vision-model
+  prompt explicitly forbids identifying, naming, or profiling people — §19)
 - track precise private real-time location
 - ingest illegally obtained or leaked personal databases
 - exploit platform vulnerabilities

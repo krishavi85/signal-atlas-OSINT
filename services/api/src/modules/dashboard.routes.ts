@@ -64,7 +64,7 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
     const { id } = z.object({ id: z.string() }).parse(req.params);
     await assertProjectAccess(req, id);
 
-    const [project, evidence, dupes, entities, entityByType, claims, timeline, latestSearch, openContradictions] =
+    const [project, evidence, dupes, entities, entityByType, claims, timeline, latestSearch, openContradictions, mediaCount, mediaWithGps] =
       await Promise.all([
         prisma.project.findUniqueOrThrow({ where: { id } }),
         prisma.evidence.count({ where: { projectId: id, isDuplicate: false } }),
@@ -75,6 +75,8 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
         prisma.timelineEvent.count({ where: { projectId: id } }),
         prisma.search.findFirst({ where: { projectId: id }, orderBy: { createdAt: 'desc' }, include: { _count: { select: { evidence: true } } } }),
         prisma.contradiction.count({ where: { projectId: id, status: 'OPEN' } }),
+        prisma.mediaAsset.count({ where: { projectId: id, duplicateOfId: null } }),
+        prisma.mediaAsset.count({ where: { projectId: id, gpsLat: { not: null } } }),
       ]);
 
     const topSources = await prisma.source.findMany({
@@ -92,6 +94,8 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
         entities,
         timelineEvents: timeline,
         openContradictions,
+        media: mediaCount,
+        mediaWithGps,
       },
       entityByType: entityByType.map((e) => ({ type: e.type, count: e._count })),
       claimsByCorroboration: claims.map((c) => ({ corroboration: c.corroboration, count: c._count })),

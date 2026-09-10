@@ -4,7 +4,7 @@ import { useApi } from '@/lib/useApi';
 import { Badge, EmptyState, ErrorState, Spinner, Stat } from '@/components/ui';
 
 interface OverviewData {
-  counts: { evidence: number; duplicatesSuppressed: number; entities: number; timelineEvents: number; openContradictions: number };
+  counts: { evidence: number; duplicatesSuppressed: number; entities: number; timelineEvents: number; openContradictions: number; media: number; mediaWithGps: number };
   entityByType: Array<{ type: string; count: number }>;
   claimsByCorroboration: Array<{ corroboration: string; count: number }>;
   latestSearch: { id: string; originalQuery: string; status: string; _count: { evidence: number } } | null;
@@ -19,11 +19,12 @@ export function Overview({ projectId }: { projectId: string }) {
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
         <Stat label="Evidence" value={data.counts.evidence} />
         <Stat label="Duplicates suppressed" value={data.counts.duplicatesSuppressed} />
         <Stat label="Entities" value={data.counts.entities} />
         <Stat label="Timeline events" value={data.counts.timelineEvents} />
+        <Stat label="Media" value={data.counts.media} tone={data.counts.mediaWithGps ? 'text-amber-400' : undefined} />
         <Stat label="Open contradictions" value={data.counts.openContradictions} tone={data.counts.openContradictions ? 'text-red-400' : undefined} />
       </div>
 
