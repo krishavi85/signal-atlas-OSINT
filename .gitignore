@@ -16,6 +16,3 @@ data/
 storage/
 .DS_Store
 .turbo/
-
-tsx
-node_modules
