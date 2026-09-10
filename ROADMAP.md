@@ -71,21 +71,24 @@ Legend: ✅ done · 🟡 partial (usable, gaps noted) · ⚪ scaffolded (interfa
 | Per-project connector scope config (§4, §17) | ✅ `connectorScopesJson` on Project + "Configure sources" UI (RSS feeds, subreddits, …); orchestrator passes it into `search({ scope })` |
 | **Explicitly NOT built:** scraping, auth bypass, private data, CAPTCHA solving, non-public account data | ✅ by policy (§30) — connectors report `PLATFORM_RESTRICTION` gaps instead |
 
-## Phase 5 — AI
+## Phase 5 — AI  🟡 done except deep report polish
 
 | Item | State |
 |---|---|
-| Provider abstraction (none/ollama/anthropic/openai) | 🟡 chat + embeddings interface; ollama + anthropic + openai adapters |
-| Evidence-grounded summarization + anti-hallucination (§13, §14) | ⚪ prompt contracts + citation validator designed |
-| Query expansion via AI | ⚪ |
-| Semantic search (pgvector / local) (§23) | ⚪ needs embeddings + vector store |
-| Report generation (§28) | ⚪ |
-| Explainability ("WHY?") (§47) | ⚪ evidence-trace assembler stub |
+| Provider abstraction — chat (none/ollama/anthropic/openai) + embeddings | ✅ `src/ai/chat.ts`, `src/ai/embeddings.ts`; per-call `ai_usage` accounting; budget guard (§43); honest `chatStatus()` / `embeddingStatus()` |
+| Evidence-grounded summarization + anti-hallucination (§13, §14) | ✅ numbered evidence blocks + strict citation contract + **citation validator** (`validateCitations`) that flags every factual sentence with no valid `[E<n>]`; stored in `ai_analyses` with `ungroundedStatements`; "Ask the evidence" UI |
+| Query expansion via AI (§5) | ✅ `expandQueriesAI` — JSON output, deduped against executed queries, **not auto-run**; "AI-suggested queries" panel in Search tab |
+| Semantic search (§23) | ✅ (Phase 3) |
+| Report generation (§28) | ✅ `generateReport` — deterministic assembly of Scope/Methodology/Coverage/Entities/Timeline/Claims/Contradictions/Source-Assessment/Evidence/Limitations from the DB + AI narrative for Exec-Summary/Key-Findings/Conclusion **when a provider is configured** (marked unavailable otherwise, never faked); Markdown / HTML / JSON export with sha256 checksum; Analyst-tab UI |
+| Explainability "WHY?" (§47) | ✅ claim WHY panel (Phase 3) + report ungrounded-statement callouts + `citedEvidenceIds` on every AI output |
+| PDF / DOCX report export | ⚪ Phase 8 (MD/HTML/JSON done) |
 
 ## Phase 6 — Visual intelligence
 
-Knowledge graph (Cytoscape/Sigma), timeline (vis-timeline), source explorer,
-entity explorer, evidence viewer. ❌ not started (API endpoints partially exist).
+Timeline view (§15) ✅ · connection graph (§8) ✅ · evidence viewer ✅ ·
+entity explorer ✅ · source explorer (Overview "top sources") 🟡.
+Remaining: media intelligence — image/video metadata, OCR, transcripts,
+perceptual-hash dup detection (§19). ❌ not started (`media` table exists).
 
 ## Phase 7 — Monitoring
 

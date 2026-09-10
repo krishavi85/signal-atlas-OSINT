@@ -49,7 +49,7 @@ export function Overview({ projectId }: { projectId: string }) {
         <section className="card p-4">
           <h3 className="mb-2 text-sm font-semibold text-slate-200">Claims by corroboration</h3>
           {data.claimsByCorroboration.length === 0 ? (
-            <EmptyState title="No claims extracted yet" hint="Claim extraction (Phase 3) is scaffolded." />
+            <EmptyState title="No claims extracted yet" hint="Claims come from sources with descriptive prose (Wikipedia, news, uploaded documents)." />
           ) : (
             <ul className="space-y-1 text-sm">
               {data.claimsByCorroboration.map((c) => (

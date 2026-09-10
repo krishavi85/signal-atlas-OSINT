@@ -89,6 +89,7 @@ model Project {
   reports        Report[]
   jobs           Job[]
   auditLogs      AuditLog[]
+  aiAnalyses     AiAnalysis[]
 
   @@index([ownerId])
   @@map("projects")
@@ -721,6 +722,31 @@ model ResponseCache {
 
   @@index([expiresAt])
   @@map("response_cache")
+}
+
+// Stored AI research-analyst outputs (§13, §47). Kept distinct from human notes
+// (§22) and always carries its evidence citations + anything the citation
+// validator could not ground (§14).
+model AiAnalysis {
+  id                   String   @id @default(cuid())
+  projectId            String
+  project              Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind                 String   // SUMMARY | QUERY_EXPANSION | REPORT_SECTION
+  question             String?
+  provider             String
+  model                String
+  outputText           String
+  outputJson           Json?    // structured form (findings, suggested queries, ...)
+  citedEvidenceIds     Json     // string[]
+  ungroundedStatements Json     // string[] — factual-looking claims with no citation (§14)
+  inputTokens          Int      @default(0)
+  outputTokens         Int      @default(0)
+  estimatedCostUsd     Float    @default(0)
+  createdById          String?
+  createdAt            DateTime @default(now())
+
+  @@index([projectId, kind, createdAt])
+  @@map("ai_analyses")
 }
 
 model AiUsage {

@@ -25,7 +25,8 @@ This repository is under active construction against a 10-phase roadmap
 | 2 | Search — web search, query planning, normalization, dedup, history, rate limiting, caching | ✅ done |
 | 3 | Intelligence — entity extraction/resolution, claims, relationships, timeline, corroboration, contradictions, document ingestion, semantic search | ✅ done |
 | 4 | Social connectors (official APIs only) + Wayback + per-project source scoping | ✅ built (Meta/IG/YouTube/Reddit gated on operator credentials) |
-| 5 | AI research analyst — evidence-grounded summarization, AI query expansion, report generation | ⚪ provider abstraction + embeddings done; synthesis not started |
+| 5 | AI research analyst — evidence-grounded Q&A + citation validator, AI query expansion, report generation (MD/HTML/JSON) | ✅ done (degrades honestly with no AI provider) |
+| 6 | Visual intelligence — timeline, connection graph, explorers | 🟡 done except media intelligence (OCR/transcripts) |
 | 6 | Visual intelligence — graph, timeline, explorers | ⚪ not started |
 | 7 | Monitoring — scheduled search, change detection, alerts | ⚪ not started |
 | 8 | Export — PDF/DOCX/CSV/JSON/MD + evidence packages | ⚪ not started |

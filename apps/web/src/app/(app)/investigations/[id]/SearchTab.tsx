@@ -172,6 +172,8 @@ export function SearchTab({ projectId, canEdit, projectActive }: { projectId: st
         {err && <p className="text-xs text-red-400">{err}</p>}
       </div>
 
+      {canEdit && projectActive && <AiQuerySuggestions projectId={projectId} onPick={setQuery} />}
+
       {preview && !running && (
         <div className="card space-y-3 p-4">
           <h3 className="text-sm font-semibold text-slate-200">Planned queries</h3>
@@ -237,6 +239,57 @@ export function SearchTab({ projectId, canEdit, projectActive }: { projectId: st
       )}
 
       <SearchHistory data={history.data} loading={history.loading} error={history.error} reload={history.reload} />
+    </div>
+  );
+}
+
+function AiQuerySuggestions({ projectId, onPick }: { projectId: string; onPick: (q: string) => void }) {
+  const [state, setState] = useState<
+    | { kind: 'idle' }
+    | { kind: 'loading' }
+    | { kind: 'unavailable'; reason: string }
+    | { kind: 'ready'; queries: Array<{ query: string; rationale: string }> }
+    | { kind: 'error'; message: string }
+  >({ kind: 'idle' });
+
+  async function run() {
+    setState({ kind: 'loading' });
+    try {
+      const res = await api<any>(`/projects/${projectId}/ai/expand-queries`, { method: 'POST', body: JSON.stringify({}) });
+      if (res.available === false) setState({ kind: 'unavailable', reason: `${res.reason} ${res.setup ?? ''}` });
+      else setState({ kind: 'ready', queries: res.queries ?? [] });
+    } catch (e) {
+      setState({ kind: 'error', message: e instanceof Error ? e.message : 'Failed' });
+    }
+  }
+
+  return (
+    <div className="card p-3 text-sm">
+      <button className="flex w-full items-center gap-2 text-left text-slate-300" onClick={run}>
+        <span className="font-medium">AI-suggested queries (§5)</span>
+        <span className="ml-auto text-[11px] text-slate-600">
+          {state.kind === 'loading' ? 'thinking…' : 'click to generate'}
+        </span>
+      </button>
+      {state.kind === 'unavailable' && <p className="mt-2 text-xs text-amber-400">{state.reason}</p>}
+      {state.kind === 'error' && <p className="mt-2 text-xs text-red-400">{state.message}</p>}
+      {state.kind === 'ready' && (
+        <ul className="mt-2 space-y-1">
+          {state.queries.length === 0 && <li className="text-xs text-slate-600">No suggestions returned.</li>}
+          {state.queries.map((q, i) => (
+            <li key={i} className="flex items-baseline gap-2">
+              <button className="btn-ghost py-0.5 text-[11px]" onClick={() => onPick(q.query)}>
+                use
+              </button>
+              <code className="text-slate-200">{q.query}</code>
+              <span className="text-[11px] text-slate-600">— {q.rationale}</span>
+            </li>
+          ))}
+          <li className="pt-1 text-[11px] text-slate-600">
+            Suggestions are not auto-executed. Review, then click &quot;use&quot; and run.
+          </li>
+        </ul>
+      )}
     </div>
   );
 }

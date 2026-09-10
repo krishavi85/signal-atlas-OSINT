@@ -2,12 +2,24 @@
 
 ## Status
 
-The AI **provider abstraction** and the **anti-hallucination contract** are
-designed and partially wired. Concrete synthesis features (evidence-grounded
-summarisation, AI query expansion, report generation, semantic search) are
-**not implemented yet** — see `ROADMAP.md` Phase 5. With `AI_PROVIDER=none`
-(the default in this deployment) the platform runs entirely on **deterministic
-heuristic extractors** and never calls a third-party model.
+**Implemented** (Phase 5): chat + embedding provider abstraction, evidence-grounded
+Q&A with a citation validator, AI query expansion, and report generation.
+
+With `AI_PROVIDER=none` (the default in this deployment) the platform runs
+entirely on **deterministic heuristic extractors** and never calls a model:
+"Ask the evidence" and "AI-suggested queries" return an honest *unavailable*
+response, and **report generation still works** — it produces the full
+evidence-cited report and marks the narrative sections as unavailable rather
+than fabricating them (§51).
+
+Enable AI:
+
+```
+AI_PROVIDER=ollama            # or anthropic / openai
+AI_MODEL_SYNTH=llama3.1:8b    # or claude-sonnet-5 / gpt-4o
+AI_MODEL_EXTRACT=llama3.1:8b  # optional smaller model for extraction/expansion
+# plus ANTHROPIC_API_KEY or OPENAI_API_KEY for the hosted providers
+```
 
 ## Provider abstraction (§42)
 
@@ -35,18 +47,25 @@ Local-first (§35): run Ollama, set `AI_PROVIDER=ollama`,
 `AI_MODEL_EXTRACT=llama3.1:8b`, `AI_MODEL_SYNTH=…`, and no investigation content
 leaves the machine.
 
-## Anti-hallucination contract (§14)
+## Anti-hallucination contract (§14) — implemented
 
-Every AI call that produces factual output MUST:
+Every AI call that produces factual output:
 
-1. receive the candidate evidence as numbered context blocks;
-2. return, for each statement, the evidence ids it is grounded in;
-3. be passed through a **citation validator** that rejects any factual sentence
-   with no evidence reference — such sentences are dropped or re-labelled
-   `Unverified` / `Insufficient evidence` / `Not found in the searched sources`.
+1. receives the candidate evidence as numbered blocks `[E1] EVIDENCE-… "excerpt"`
+   (`buildEvidenceContext`, `src/ai/grounding.ts`);
+2. is instructed to cite `[E1]` / `[E2, E5]` after every factual sentence and to
+   say exactly *"Not found in the searched sources."* for gaps;
+3. is passed through **`validateCitations`**, which maps citations back to
+   evidence ids, records `citedEvidenceIds`, and returns `ungroundedStatements`
+   — every factual-looking sentence with no valid citation. Those are surfaced
+   in the UI and in reports under a "not to be treated as fact" callout, never
+   silently kept. Out-of-range refs (`[E99]`) are reported as `invalidRefs`.
 
-`assertFactHasEvidence()` (`packages/core`) is the runtime guard: anything tagged
-`FACT` with zero evidence throws.
+`assertFactHasEvidence()` (`packages/core`) is the runtime guard for the claim
+engine: anything tagged `FACT` with zero evidence throws.
+
+Prompt contracts live in `src/ai/grounding.ts` (`SUMMARY_SYSTEM`,
+`EXPAND_SYSTEM`, `REPORT_NARRATIVE_SYSTEM`).
 
 Reports keep the provenance boundary visible: `FACT` · `SOURCE` · `CLAIM` ·
 `INFERENCE` · `HYPOTHESIS` · `UNKNOWN`, and human vs AI conclusions are stored

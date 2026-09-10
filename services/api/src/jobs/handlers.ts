@@ -3,6 +3,7 @@ import { checkAllConnectorHealth } from '../connectors/health.js';
 import { runResearchRun } from '../orchestrator/pipeline.js';
 import { ingestDocument } from '../orchestrator/DocumentIngest.js';
 import { backfillEmbeddings } from '../orchestrator/SemanticIndex.js';
+import { generateReport } from '../orchestrator/AIResearchEngine.js';
 import { registerJobHandler } from './runner.js';
 
 /** Wire concrete job handlers into the runner. Called once at startup. */
@@ -60,12 +61,17 @@ export function registerAllJobHandlers(): void {
     throw new Error(`Unknown AI_ANALYSIS op "${op}"`);
   });
 
-  // Placeholders that fail honestly rather than pretending to work (§51).
-  for (const type of ['MONITORING_RUN', 'REPORT_GENERATE'] as const) {
-    registerJobHandler(type, async () => {
-      throw new Error(
-        `Job type ${type} is not implemented yet (see ROADMAP.md). This job is marked FAILED rather than returning fabricated results.`,
-      );
-    });
-  }
+  registerJobHandler('REPORT_GENERATE', async (ctx) => {
+    const reportId = String(ctx.payload.reportId ?? '');
+    if (!reportId) throw new Error('REPORT_GENERATE payload missing reportId');
+    await generateReport(reportId);
+    return { status: 'COMPLETED', result: { reportId } };
+  });
+
+  // Placeholder that fails honestly rather than pretending to work (§51).
+  registerJobHandler('MONITORING_RUN', async () => {
+    throw new Error(
+      'MONITORING_RUN is not implemented yet (Phase 7, see ROADMAP.md). Marked FAILED rather than returning fabricated results.',
+    );
+  });
 }

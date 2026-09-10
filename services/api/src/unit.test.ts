@@ -10,6 +10,8 @@ const { hashPassword, verifyPassword } = await import('./lib/password.js');
 const { planQueries } = await import('./orchestrator/QueryPlanner.js');
 const { scoreEntityMatch, jaroWinkler } = await import('./orchestrator/EntityResolver.js');
 const { signAccessToken, verifyAccessToken, generateRefreshToken, hashRefreshToken } = await import('./auth/tokens.js');
+const { buildEvidenceContext, validateCitations } = await import('./ai/grounding.js');
+const { parseJsonLoose } = await import('./ai/chat.js');
 
 test('crypto: AES-256-GCM round trip + tamper detection', () => {
   const enc = encryptSecret('super-secret-token');
@@ -74,4 +76,40 @@ test('jaroWinkler basic properties', () => {
   assert.equal(jaroWinkler('same', 'same'), 1);
   assert.ok(jaroWinkler('acme corp', 'acme corporation') > 0.8);
   assert.ok(jaroWinkler('acme', 'zzzz') < 0.5);
+});
+
+test('buildEvidenceContext numbers blocks and maps to ids', () => {
+  const { blocks, prompt } = buildEvidenceContext([
+    { id: 'EVIDENCE-2026-000001', title: 'A', excerpt: 'first', fullText: null, url: 'https://a.com', publishedAt: '2025-01-01', source: { label: 'A News', tier: 'ESTABLISHED_PUBLICATION' } },
+    { id: 'EVIDENCE-2026-000002', title: 'B', excerpt: 'second', fullText: null, url: null, publishedAt: null, source: null },
+  ]);
+  assert.equal(blocks[0]?.ref, 'E1');
+  assert.equal(blocks[1]?.evidenceId, 'EVIDENCE-2026-000002');
+  assert.ok(prompt.includes('[E1] EVIDENCE-2026-000001'));
+  assert.ok(prompt.includes('A News'));
+});
+
+test('validateCitations: grounds cited statements, flags uncited factual ones, exempts gap markers', () => {
+  const { blocks } = buildEvidenceContext([
+    { id: 'EVIDENCE-2026-000001', title: null, excerpt: 'x', fullText: null, url: null, publishedAt: null, source: null },
+    { id: 'EVIDENCE-2026-000002', title: null, excerpt: 'y', fullText: null, url: null, publishedAt: null, source: null },
+  ]);
+  const aiText = [
+    '[FACT] The organization was founded in 2019 [E1, E2].',
+    'It later expanded into three new countries and doubled its headcount.', // uncited factual -> ungrounded
+    'Its exact revenue is not found in the searched sources.', // gap marker -> exempt
+    'The CEO stepped down in 2023 [E5].', // invalid ref
+  ].join('\n');
+  const v = validateCitations(aiText, blocks);
+  assert.deepEqual(v.evidenceIdsUsed.sort(), ['EVIDENCE-2026-000001', 'EVIDENCE-2026-000002']);
+  assert.equal(v.grounded.length, 1);
+  assert.ok(v.ungrounded.some((s) => s.includes('three new countries')));
+  assert.ok(!v.ungrounded.some((s) => s.includes('not found in the searched sources')));
+  assert.deepEqual(v.invalidRefs, ['E5']);
+});
+
+test('parseJsonLoose handles fenced and trailing prose', () => {
+  assert.deepEqual(parseJsonLoose('```json\n{"a":1}\n```'), { a: 1 });
+  assert.deepEqual(parseJsonLoose('Here you go: {"queries":[]} hope that helps'), { queries: [] });
+  assert.equal(parseJsonLoose('not json at all'), null);
 });

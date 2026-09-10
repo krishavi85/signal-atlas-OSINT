@@ -18,6 +18,7 @@ import { entityRoutes } from './modules/entities.routes.js';
 import { jobRoutes } from './modules/jobs.routes.js';
 import { intelligenceRoutes } from './modules/intelligence.routes.js';
 import { documentRoutes } from './modules/documents.routes.js';
+import { aiRoutes } from './modules/ai.routes.js';
 import { dashboardRoutes } from './modules/dashboard.routes.js';
 import { sseRoutes } from './realtime/sse.js';
 import { registry } from './connectors/runtime.js';
@@ -67,11 +68,10 @@ export async function buildServer(): Promise<FastifyInstance> {
     ai: { provider: env.AI_PROVIDER, embeddings: env.AI_EMBEDDINGS_PROVIDER },
     jobDriver: env.JOB_DRIVER,
     notImplemented: [
-      'AI synthesis & report generation (Phase 5/8)',
       'Monitoring engine — scheduled runs & change detection (Phase 7)',
-      'Document ingestion pipeline — PDF/DOCX/CSV parsing (Phase 3 partial)',
       'Media intelligence — OCR / transcripts / perceptual hashing (Phase 6)',
-      'Semantic / vector search (needs embeddings + pgvector)',
+      'PDF / DOCX report export (Markdown / HTML / JSON export works; Phase 8)',
+      'Evidence-package zip export with checksums (Phase 8)',
       'God Mode autonomous orchestrator (Phase 10)',
     ],
     implemented: [
@@ -81,6 +81,9 @@ export async function buildServer(): Promise<FastifyInstance> {
       'Evidence-traceable relationship graph',
       'Deterministic claim extraction + factor-based corroboration + contradiction detection',
       'Timeline derivation from evidence dates + dated claims',
+      'Document ingestion (PDF/DOCX/TXT/CSV/JSON/HTML)',
+      'Semantic search (when an embedding provider is configured)',
+      'AI research analyst — evidence-grounded Q&A, AI query expansion, report generation (when an AI provider is configured); anti-hallucination citation validation',
       'Explainable confidence ("WHY?") with exposed factors',
     ],
   }));
@@ -95,6 +98,7 @@ export async function buildServer(): Promise<FastifyInstance> {
       await api.register(entityRoutes);
       await api.register(intelligenceRoutes);
       await api.register(documentRoutes);
+      await api.register(aiRoutes);
       await api.register(jobRoutes);
       await api.register(dashboardRoutes);
       await api.register(sseRoutes);
