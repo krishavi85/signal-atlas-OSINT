@@ -27,6 +27,7 @@ This repository is under active construction against a 10-phase roadmap
 | 4 | Social connectors (official APIs only) + Wayback + per-project source scoping | ✅ built (Meta/IG/YouTube/Reddit gated on operator credentials) |
 | 5 | AI research analyst — evidence-grounded Q&A + citation validator, AI query expansion, report generation (MD/HTML/JSON) | ✅ done (degrades honestly with no AI provider) |
 | 6 | Visual intelligence — timeline, connection graph, explorers, media intelligence (metadata/EXIF-GPS/perceptual-dedup, vision-model OCR) | ✅ done (video/audio transcription not bundled; no facial ID by policy) |
+| 7 | Monitoring — scheduled search jobs, change detection vs. the existing evidence corpus, alerting state | ✅ done |
 | 6 | Visual intelligence — graph, timeline, explorers | ⚪ not started |
 | 7 | Monitoring — scheduled search, change detection, alerts | ⚪ not started |
 | 8 | Export — PDF/DOCX/CSV/JSON/MD + evidence packages | ⚪ not started |

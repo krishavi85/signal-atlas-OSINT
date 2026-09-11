@@ -5,6 +5,7 @@ import { ingestDocument } from '../orchestrator/DocumentIngest.js';
 import { backfillEmbeddings } from '../orchestrator/SemanticIndex.js';
 import { generateReport } from '../orchestrator/AIResearchEngine.js';
 import { collectMediaForProject, processProjectMedia } from '../orchestrator/MediaEngine.js';
+import { runMonitoringJob } from '../orchestrator/MonitoringEngine.js';
 import { enqueueJob, registerJobHandler } from './runner.js';
 
 /** Wire concrete job handlers into the runner. Called once at startup. */
@@ -83,10 +84,10 @@ export function registerAllJobHandlers(): void {
     return { status: 'COMPLETED', result: { reportId } };
   });
 
-  // Placeholder that fails honestly rather than pretending to work (§51).
-  registerJobHandler('MONITORING_RUN', async () => {
-    throw new Error(
-      'MONITORING_RUN is not implemented yet (Phase 7, see ROADMAP.md). Marked FAILED rather than returning fabricated results.',
-    );
+  registerJobHandler('MONITORING_RUN', async (ctx) => {
+    const monitoringJobId = String(ctx.payload.monitoringJobId ?? '');
+    if (!monitoringJobId) throw new Error('MONITORING_RUN payload missing monitoringJobId');
+    await runMonitoringJob(monitoringJobId);
+    return { status: 'COMPLETED' };
   });
 }

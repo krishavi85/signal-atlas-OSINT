@@ -27,6 +27,7 @@
     "@osint/connectors": "*",
     "@osint/core": "*",
     "@prisma/client": "^6.1.0",
+    "cron-parser": "^5.10.0",
     "exifr": "^7.1.3",
     "fastify": "^5.1.0",
     "image-size": "^2.0.2",

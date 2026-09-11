@@ -96,10 +96,19 @@ Legend: ✅ done · 🟡 partial (usable, gaps noted) · ⚪ scaffolded (interfa
 | Reverse image search | ⚪ needs a provider API key (TinEye / Vision) |
 | **Facial identification / biometric matching** | ❌ **never built, by policy (§19, §30)** — no face code anywhere |
 
-## Phase 7 — Monitoring
+## Phase 7 — Monitoring  ✅
 
-Monitoring jobs (query/sources/schedule/state), change detection with
-duplicate suppression, alerts, new-evidence detection. ❌ schema done, engine not started.
+| Item | State |
+|---|---|
+| Monitoring jobs (query, connectors, cron schedule, enabled state) | ✅ CRUD API + Monitoring tab; cron presets (hourly/6h/12h/daily/weekly) or raw cron, validated (`cron-parser`) |
+| Scheduler | ✅ 60s ticker finds jobs whose `nextRunAt` has passed and enqueues a `MONITORING_RUN` job (de-duplicated against an in-flight run); manual "run now" uses the same path |
+| Change detection (§16) | ✅ every candidate result is checked against the **existing** evidence corpus (URL / canonical URL / content hash) — identical → suppressed (never re-alerted); same URL, different content → **CHANGED** (new evidence row + `TimelineEvent`, references the prior capture); no match → **NEW** |
+| Per-run state | ✅ `MonitoringResult` records new/changed/suppressed counts, a plain-English summary, per-connector notices, and any error; `MonitoringJob` tracks `lastRunAt`/`lastSuccessAt`/`nextRunAt`/`lastError`/`rateLimitState` |
+| UI | ✅ create/pause/resume/run-now/delete, run history per job, real data on the Home dashboard's Monitoring panel |
+
+Verified E2E: a "Rust programming language" monitor's first run found 40 new
+items; an immediate second run correctly suppressed all 40 as already-known,
+finding 0 new/changed.
 
 ## Phase 8 — Export
 

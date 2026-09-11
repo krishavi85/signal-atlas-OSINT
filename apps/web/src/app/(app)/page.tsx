@@ -78,7 +78,7 @@ export default function HomePage() {
         {data.monitoring.length === 0 ? (
           <EmptyState
             title="No monitoring jobs"
-            hint="Monitoring engine (Phase 7) is scaffolded; scheduled runs are not executing yet."
+            hint="Create one from an investigation's Monitoring tab to watch for new public mentions on a schedule."
           />
         ) : (
           <ul className="space-y-1 text-sm">

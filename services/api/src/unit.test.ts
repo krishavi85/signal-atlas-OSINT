@@ -13,6 +13,7 @@ const { signAccessToken, verifyAccessToken, generateRefreshToken, hashRefreshTok
 const { buildEvidenceContext, validateCitations } = await import('./ai/grounding.js');
 const { parseJsonLoose } = await import('./ai/chat.js');
 const { perceptualHash, hammingHex, isDuplicateImage, extractImageMeta } = await import('./lib/mediaExtract.js');
+const { computeNextRun, validateCron } = await import('./orchestrator/MonitoringEngine.js');
 
 test('crypto: AES-256-GCM round trip + tamper detection', () => {
   const enc = encryptSecret('super-secret-token');
@@ -142,4 +143,17 @@ test('media: perceptual hash detects a resized copy as duplicate, not an unrelat
   assert.equal(meta.height, 128);
   assert.equal(meta.gps, null);
   assert.equal(meta.sha256.length, 64);
+});
+
+test('monitoring: cron validation and next-run computation', () => {
+  assert.equal(validateCron('0 */6 * * *').valid, true);
+  assert.equal(validateCron('not a cron').valid, false);
+
+  const from = new Date('2026-01-01T00:00:00Z');
+  const next = computeNextRun('0 8 * * *', from);
+  assert.equal(next.toISOString(), '2026-01-01T08:00:00.000Z');
+
+  const weekly = computeNextRun('0 8 * * 1', from); // Jan 1 2026 is a Thursday
+  assert.equal(weekly.getUTCDay(), 1);
+  assert.ok(weekly.getTime() > from.getTime());
 });

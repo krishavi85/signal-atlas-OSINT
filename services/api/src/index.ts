@@ -1,12 +1,13 @@
 import { loadEnv } from './env.js';
 import { logger } from './logger.js';
-import { disconnectDb } from './db.js';
+import { disconnectDb, prisma } from './db.js';
 import { buildServer } from './server.js';
 import { ensureConnectorsSeeded } from './connectors/runtime.js';
 import { checkAllConnectorHealth } from './connectors/health.js';
 import { registerAllJobHandlers } from './jobs/handlers.js';
 import { startJobRunner, stopJobRunner, enqueueJob } from './jobs/runner.js';
 import { purgeExpiredCache } from './lib/cache.js';
+import { findDueMonitoringJobs } from './orchestrator/MonitoringEngine.js';
 
 async function main(): Promise<void> {
   const env = loadEnv();
@@ -29,11 +30,33 @@ async function main(): Promise<void> {
     () => void purgeExpiredCache().then((n) => n && logger.debug(`purged ${n} expired cache rows`)),
     30 * 60 * 1000,
   );
+  // Monitoring scheduler (§17): every minute, enqueue any job whose nextRunAt
+  // has arrived. Enqueue-then-jobrunner keeps this consistent with manual
+  // "run now" and gives monitoring runs the same retry/observability as any
+  // other job.
+  const monitoringTimer = setInterval(async () => {
+    try {
+      const due = await findDueMonitoringJobs();
+      for (const monitoringJobId of due) {
+        const job = await prisma.monitoringJob.findUnique({ where: { id: monitoringJobId } });
+        if (!job) continue;
+        // avoid double-enqueue if a run is already in flight for this job
+        const alreadyQueued = await prisma.job.findFirst({
+          where: { type: 'MONITORING_RUN', status: { in: ['QUEUED', 'RUNNING'] }, payloadJson: { equals: { monitoringJobId } } },
+        });
+        if (alreadyQueued) continue;
+        await enqueueJob({ type: 'MONITORING_RUN', projectId: job.projectId, payload: { monitoringJobId } });
+      }
+    } catch (err) {
+      logger.warn({ err }, 'monitoring scheduler tick failed');
+    }
+  }, 60 * 1000);
 
   const shutdown = async (sig: string) => {
     logger.info(`${sig} received, shutting down`);
     clearInterval(healthTimer);
     clearInterval(cacheTimer);
+    clearInterval(monitoringTimer);
     await stopJobRunner();
     await app.close();
     await disconnectDb();
