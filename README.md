@@ -29,6 +29,8 @@ This repository is under active construction against a 10-phase roadmap
 | 6 | Visual intelligence — timeline, connection graph, explorers, media intelligence (metadata/EXIF-GPS/perceptual-dedup, vision-model OCR) | ✅ done (video/audio transcription not bundled; no facial ID by policy) |
 | 7 | Monitoring — scheduled search jobs, change detection vs. the existing evidence corpus, alerting state | ✅ done |
 | 8 | Export — PDF/DOCX/MD/HTML/JSON reports, CSV exports, zipped evidence package with sha256 manifest | ✅ done |
+| 9 | Hardening — security fixes, failure-mode tests, `/metrics`, job diagnostics, backup/restore | ✅ done |
+| 10 | God Mode — one TARGET/OBJECTIVE/DEPTH run composing every engine into the full §56 result | ✅ done |
 | 6 | Visual intelligence — graph, timeline, explorers | ⚪ not started |
 | 7 | Monitoring — scheduled search, change detection, alerts | ⚪ not started |
 | 8 | Export — PDF/DOCX/CSV/JSON/MD + evidence packages | ⚪ not started |

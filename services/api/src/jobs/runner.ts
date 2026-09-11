@@ -22,7 +22,8 @@ export type JobType =
   | 'MEDIA_PROCESS'
   | 'MONITORING_RUN'
   | 'REPORT_GENERATE'
-  | 'AI_ANALYSIS';
+  | 'AI_ANALYSIS'
+  | 'GOD_MODE_RUN';
 
 export interface JobContext {
   jobId: string;

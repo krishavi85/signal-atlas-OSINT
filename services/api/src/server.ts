@@ -23,6 +23,7 @@ import { mediaRoutes } from './modules/media.routes.js';
 import { monitoringRoutes } from './modules/monitoring.routes.js';
 import { exportRoutes } from './modules/export.routes.js';
 import { metricsRoutes } from './modules/metrics.routes.js';
+import { godModeRoutes } from './modules/god-mode.routes.js';
 import { dashboardRoutes } from './modules/dashboard.routes.js';
 import { sseRoutes } from './realtime/sse.js';
 import { registry } from './connectors/runtime.js';
@@ -77,7 +78,6 @@ export async function buildServer(): Promise<FastifyInstance> {
       'Reverse image search (needs a provider API key)',
       'Distributed tracing (needs an OpenTelemetry collector)',
       'Load/performance test harness',
-      'God Mode autonomous orchestrator (Phase 10)',
     ],
     implemented: [
       'Multi-source search orchestration + query planning + coverage reporting',
@@ -95,6 +95,7 @@ export async function buildServer(): Promise<FastifyInstance> {
       'Full evidence package export (.zip: evidence.json, sources/entities/relationships/timeline/claims/audit-log CSVs, report.pdf/docx, sha256 manifest)',
       'AI research analyst — evidence-grounded Q&A, AI query expansion, report generation (when an AI provider is configured); anti-hallucination citation validation',
       'Explainable confidence ("WHY?") with exposed factors',
+      'God Mode — one TARGET/OBJECTIVE/DEPTH run composing every engine (search, evidence, entities, resolution, relationships, claims, corroboration, contradictions, timeline, report, monitoring recommendations) into the full §56 15-section result',
     ],
   }));
 
@@ -112,6 +113,7 @@ export async function buildServer(): Promise<FastifyInstance> {
       await api.register(mediaRoutes);
       await api.register(monitoringRoutes);
       await api.register(exportRoutes);
+      await api.register(godModeRoutes);
       await api.register(jobRoutes);
       await api.register(dashboardRoutes);
       await api.register(sseRoutes);

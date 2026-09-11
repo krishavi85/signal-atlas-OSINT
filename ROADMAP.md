@@ -142,10 +142,24 @@ manifest.
 | Tracing | ⚪ not implemented (would need an OTel collector); structured request-id-tagged logs are the practical substitute today |
 | TLS termination | 🟡 operator responsibility (reverse proxy), documented in `docs/SECURITY.md` |
 
-## Phase 10 — God Mode orchestrator (§55, §56)
+## Phase 10 — God Mode orchestrator (§55, §56)  ✅ verified end-to-end
 
-`GodModeResearchOrchestrator` composing every engine into one autonomous
-workflow with the §56 result layout. ❌ not started — depends on Phases 3, 5, 7, 8.
+| Item | State |
+|---|---|
+| Single TARGET/OBJECTIVE/DATE RANGE/SOURCES/DEPTH/LANGUAGES entry point | ✅ `POST /projects/:id/god-mode` + a `/god-mode` launcher page |
+| Composes every engine (§55) | ✅ `GodModeOrchestrator.ts` runs `runResearchRun` (QueryPlanner + SearchOrchestrator + ConnectorRegistry + EvidenceEngine + EntityEngine + ResolutionEngine + CorrelationEngine + ClaimEngine + ContradictionEngine + TimelineEngine, all from Phases 2–3) for the primary target, then — DEEP mode with AI configured — a bounded round of AI-suggested follow-up searches, then ReportEngine (`generateReport`), assembled into one `GodModeRun` row |
+| Full §56 15-section result | ✅ Executive Summary, Key Findings, Verified/Unverified Findings, Important Entities, Connection Graph, Timeline, Claims, Contradictions, Source Coverage, Evidence, Information Gaps, Confidence Assessment, Recommended Next Searches, Monitoring Recommendations — every section reads from what actually ran, never invented |
+| Uncertainty never hidden | ✅ Information Gaps names the exact missing connector config (e.g. `META_GRAPH_ACCESS_TOKEN`) and zero-count entity types; Executive Summary is explicitly labelled non-AI when no provider is configured |
+| Monitoring recommendations are suggestions, not standing config | ✅ `POST /god-mode/:runId/create-monitoring` creates a real `MonitoringJob` only on explicit user action |
+| Depth actually changes behavior | ✅ fixed a pre-existing cap while building this: the per-connector query limit was hardcoded to 4 regardless of `depth`; now QUICK=1/STANDARD=4/DEEP=8 |
+
+Verified E2E in-browser: launched a DEEP run for "Linux Foundation" (auto-created
+investigation) → watched it progress through the pipeline → landed on a
+completed result with 196 evidence records across 5 sources, 5 entity-anchored
+claims (SINGLE_SOURCE/MEDIUM, honestly not overclaimed), a connection graph,
+timeline, an Information-Gaps section naming the exact unconfigured connectors,
+and clicked a Monitoring Recommendation's "create" button — confirmed via the
+API that it created a real, enabled daily `MonitoringJob`.
 
 ---
 

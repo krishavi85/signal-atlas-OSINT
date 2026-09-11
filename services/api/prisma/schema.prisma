@@ -90,6 +90,7 @@ model Project {
   jobs           Job[]
   auditLogs      AuditLog[]
   aiAnalyses     AiAnalysis[]
+  godModeRuns    GodModeRun[]
 
   @@index([ownerId])
   @@map("projects")
@@ -761,6 +762,35 @@ model AiAnalysis {
 
   @@index([projectId, kind, createdAt])
   @@map("ai_analyses")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// God Mode (spec §55, §56) — one autonomous run composing every engine
+// ─────────────────────────────────────────────────────────────────────────────
+
+model GodModeRun {
+  id             String   @id @default(cuid())
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  target         String
+  objective      String?
+  subjectType    String?
+  depth          String   @default("STANDARD") // QUICK | STANDARD | DEEP
+  languages      String   @default("en")
+  dateRangeStart DateTime?
+  dateRangeEnd   DateTime?
+  requestedConnectors Json? // string[] | null = all effective
+  status         String   @default("QUEUED") // QUEUED | RUNNING | COMPLETED | PARTIAL | FAILED
+  searchIds      Json?    // string[] — every Search run as part of this
+  reportId       String?
+  resultJson     Json?    // the assembled §56 sections
+  error          String?
+  createdById    String?
+  createdAt      DateTime @default(now())
+  completedAt    DateTime?
+
+  @@index([projectId, createdAt])
+  @@map("god_mode_runs")
 }
 
 model AiUsage {

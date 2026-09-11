@@ -9,6 +9,7 @@ import { Spinner } from '@/components/ui';
 const NAV = [
   { href: '/', label: 'Home' },
   { href: '/search', label: 'Universal Search' },
+  { href: '/god-mode', label: 'God Mode' },
   { href: '/investigations', label: 'Investigations' },
   { href: '/connectors', label: 'Connectors' },
   { href: '/system', label: 'System' },

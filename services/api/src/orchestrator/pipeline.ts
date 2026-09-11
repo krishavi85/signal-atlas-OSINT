@@ -46,7 +46,9 @@ export interface ResearchProgress {
 
 export type ProgressReporter = (p: ResearchProgress) => Promise<void> | void;
 
-const MAX_QUERIES_PER_CONNECTOR = 4;
+// Per-connector query cap by depth — DEEP genuinely runs more of the planned
+// queries per connector (bounded, so cost stays predictable even at DEEP).
+const MAX_QUERIES_PER_CONNECTOR_BY_DEPTH: Record<string, number> = { QUICK: 1, STANDARD: 4, DEEP: 8 };
 const HITS_PER_QUERY = 15;
 
 export async function runResearchRun(
@@ -160,7 +162,7 @@ export async function runResearchRun(
 
     let connectorHits = 0;
     let connectorEvidence = 0;
-    const chosenQueries = queryRows.slice(0, MAX_QUERIES_PER_CONNECTOR);
+    const chosenQueries = queryRows.slice(0, MAX_QUERIES_PER_CONNECTOR_BY_DEPTH[search.depth] ?? 4);
 
     for (const q of chosenQueries) {
       if (signal?.aborted) break;

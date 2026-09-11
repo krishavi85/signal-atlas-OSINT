@@ -6,6 +6,7 @@ import { backfillEmbeddings } from '../orchestrator/SemanticIndex.js';
 import { generateReport } from '../orchestrator/AIResearchEngine.js';
 import { collectMediaForProject, processProjectMedia } from '../orchestrator/MediaEngine.js';
 import { runMonitoringJob } from '../orchestrator/MonitoringEngine.js';
+import { runGodModeRun } from '../orchestrator/GodModeOrchestrator.js';
 import { enqueueJob, registerJobHandler } from './runner.js';
 
 /** Wire concrete job handlers into the runner. Called once at startup. */
@@ -89,5 +90,21 @@ export function registerAllJobHandlers(): void {
     if (!monitoringJobId) throw new Error('MONITORING_RUN payload missing monitoringJobId');
     await runMonitoringJob(monitoringJobId);
     return { status: 'COMPLETED' };
+  });
+
+  registerJobHandler('GOD_MODE_RUN', async (ctx) => {
+    const godModeRunId = String(ctx.payload.godModeRunId ?? '');
+    if (!godModeRunId) throw new Error('GOD_MODE_RUN payload missing godModeRunId');
+    const userId = ctx.payload.userId ? String(ctx.payload.userId) : null;
+    await runGodModeRun(
+      godModeRunId,
+      async (p) => {
+        await ctx.reportProgress(p as unknown as Record<string, unknown>);
+      },
+      userId,
+      ctx.signal,
+    );
+    const run = await prisma.godModeRun.findUnique({ where: { id: godModeRunId } });
+    return { status: run?.status === 'PARTIAL' ? 'PARTIAL' : 'COMPLETED', result: { godModeRunId } };
   });
 }
