@@ -124,7 +124,7 @@ export async function aiRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/reports/:reportId/export', async (req, reply) => {
     const { reportId } = z.object({ reportId: z.string() }).parse(req.params);
-    const fmt = z.object({ format: z.enum(['md', 'markdown', 'html', 'json']).default('md') }).parse(req.query).format;
+    const fmt = z.object({ format: z.enum(['md', 'markdown', 'html', 'json', 'pdf', 'docx']).default('md') }).parse(req.query).format;
     const report = await prisma.report.findUnique({ where: { id: reportId } });
     if (!report) throw notFound('Report not found');
     await assertProjectAccess(req, report.projectId);
@@ -134,6 +134,19 @@ export async function aiRoutes(app: FastifyInstance): Promise<void> {
     if (fmt === 'json') {
       reply.header('content-disposition', `attachment; filename="report-${reportId}.json"`);
       return reply.type('application/json').send(JSON.stringify({ report, sections }, null, 2));
+    }
+    const generatedAt = report.completedAt?.toISOString() ?? new Date().toISOString();
+    if (fmt === 'pdf') {
+      const { renderReportPdf } = await import('../lib/reportRenderers.js');
+      const pdf = await renderReportPdf(report.title, generatedAt, sections);
+      reply.header('content-disposition', `attachment; filename="report-${reportId}.pdf"`);
+      return reply.type('application/pdf').send(pdf);
+    }
+    if (fmt === 'docx') {
+      const { renderReportDocx } = await import('../lib/reportRenderers.js');
+      const docxBuf = await renderReportDocx(report.title, generatedAt, sections);
+      reply.header('content-disposition', `attachment; filename="report-${reportId}.docx"`);
+      return reply.type('application/vnd.openxmlformats-officedocument.wordprocessingml.document').send(docxBuf);
     }
     const md = [`# ${report.title}`, '', `_Generated ${report.completedAt?.toISOString()} · checksum ${report.checksum?.slice(0, 16)}_`, '']
       .concat(

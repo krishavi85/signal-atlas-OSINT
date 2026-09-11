@@ -137,6 +137,9 @@ export function AnalystTab({ projectId, canEdit }: { projectId: string; canEdit:
 
       {/* Reports */}
       <ReportsSection projectId={projectId} canEdit={canEdit} />
+
+      {/* Export (§48) */}
+      <ExportSection projectId={projectId} />
     </div>
   );
 }
@@ -229,7 +232,7 @@ function ReportsSection({ projectId, canEdit }: { projectId: string; canEdit: bo
               {r.checksum && <span className="font-mono text-[10px] text-slate-600">sha256:{r.checksum.slice(0, 12)}</span>}
               {r.status === 'COMPLETED' && (
                 <span className="ml-auto flex gap-2 text-xs">
-                  {(['md', 'html', 'json'] as const).map((f) => (
+                  {(['md', 'html', 'pdf', 'docx', 'json'] as const).map((f) => (
                     <a
                       key={f}
                       className="text-accent hover:underline"
@@ -249,6 +252,45 @@ function ReportsSection({ projectId, canEdit }: { projectId: string; canEdit: bo
             </div>
           ))
         )}
+      </div>
+    </section>
+  );
+}
+
+const CSV_EXPORTS = ['sources', 'entities', 'relationships', 'timeline', 'claims', 'audit-log'] as const;
+
+function ExportSection({ projectId }: { projectId: string }) {
+  const [busy, setBusy] = useState<string | null>(null);
+
+  async function get(kind: (typeof CSV_EXPORTS)[number] | 'evidence.json' | 'package.zip') {
+    setBusy(kind);
+    try {
+      const path = kind === 'evidence.json' ? `/export/evidence.json` : kind === 'package.zip' ? `/export/package.zip` : `/export/${kind}.csv`;
+      await downloadWithAuth(`/api/v1/projects/${projectId}${path}`, kind === 'evidence.json' || kind === 'package.zip' ? kind : `${kind}.csv`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <section className="card p-4">
+      <h3 className="text-sm font-semibold text-slate-200">Export (§48)</h3>
+      <p className="mt-1 text-xs text-slate-500">
+        Every export reads live from the database. The evidence package bundles everything below plus the most recent
+        report (PDF + DOCX) with a sha256 checksum manifest.
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button className="btn-primary" onClick={() => get('package.zip')} disabled={busy === 'package.zip'}>
+          {busy === 'package.zip' ? 'Building…' : 'Download evidence package (.zip)'}
+        </button>
+        <button className="btn-ghost" onClick={() => get('evidence.json')} disabled={busy === 'evidence.json'}>
+          evidence.json
+        </button>
+        {CSV_EXPORTS.map((k) => (
+          <button key={k} className="btn-ghost" onClick={() => get(k)} disabled={busy === k}>
+            {k}.csv
+          </button>
+        ))}
       </div>
     </section>
   );

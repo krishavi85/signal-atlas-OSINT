@@ -14,6 +14,8 @@ const { buildEvidenceContext, validateCitations } = await import('./ai/grounding
 const { parseJsonLoose } = await import('./ai/chat.js');
 const { perceptualHash, hammingHex, isDuplicateImage, extractImageMeta } = await import('./lib/mediaExtract.js');
 const { computeNextRun, validateCron } = await import('./orchestrator/MonitoringEngine.js');
+const { toCsv } = await import('./lib/csv.js');
+const { parseMarkdownBlocks } = await import('./lib/markdownBlocks.js');
 
 test('crypto: AES-256-GCM round trip + tamper detection', () => {
   const enc = encryptSecret('super-secret-token');
@@ -156,4 +158,43 @@ test('monitoring: cron validation and next-run computation', () => {
   const weekly = computeNextRun('0 8 * * 1', from); // Jan 1 2026 is a Thursday
   assert.equal(weekly.getUTCDay(), 1);
   assert.ok(weekly.getTime() > from.getTime());
+});
+
+test('toCsv: quotes embedded commas/quotes/newlines, serializes arrays and dates', () => {
+  const csv = toCsv(
+    [
+      { name: 'Acme, Inc.', note: 'has "quotes"', tags: ['a', 'b'], when: new Date('2026-01-01T00:00:00Z') },
+      { name: 'multi\nline', note: null, tags: [], when: null },
+    ],
+    ['name', 'note', 'tags', 'when'],
+  );
+  const lines = csv.trim().split('\r\n');
+  assert.equal(lines[0], 'name,note,tags,when');
+  assert.equal(lines[1], '"Acme, Inc.","has ""quotes""",a; b,2026-01-01T00:00:00.000Z');
+  assert.equal(lines[2], '"multi\nline",,,');
+});
+
+test('parseMarkdownBlocks: headings, paragraphs, lists, tables, blockquotes', () => {
+  const md = [
+    '## Heading',
+    '',
+    'A paragraph that',
+    'wraps two lines.',
+    '',
+    '- item one',
+    '- item two',
+    '',
+    '| A | B |',
+    '|---|---|',
+    '| 1 | 2 |',
+    '',
+    '> a warning',
+  ].join('\n');
+  const blocks = parseMarkdownBlocks(md);
+  assert.deepEqual(blocks[0], { type: 'heading', level: 2, text: 'Heading' });
+  assert.equal(blocks[1]?.type, 'paragraph');
+  assert.ok((blocks[1] as { text: string }).text.includes('wraps two lines'));
+  assert.deepEqual(blocks[2], { type: 'list', items: ['item one', 'item two'] });
+  assert.deepEqual(blocks[3], { type: 'table', header: ['A', 'B'], rows: [['1', '2']] });
+  assert.deepEqual(blocks[4], { type: 'blockquote', lines: ['a warning'] });
 });

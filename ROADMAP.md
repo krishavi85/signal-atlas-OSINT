@@ -110,10 +110,22 @@ Verified E2E: a "Rust programming language" monitor's first run found 40 new
 items; an immediate second run correctly suppressed all 40 as already-known,
 finding 0 new/changed.
 
-## Phase 8 — Export
+## Phase 8 — Export  ✅
 
-PDF / DOCX / HTML / Markdown / JSON / CSV reports; evidence package zip with
-checksums (§48). ❌ not started; report structure (§28) documented.
+| Item | State |
+|---|---|
+| Report export: Markdown / HTML / JSON | ✅ (Phase 5) |
+| Report export: PDF | ✅ `pdfkit` (pure JS, no headless browser) — renders the same structured sections (headings/paragraphs/lists/tables/blockquotes) via a shared Markdown-block parser; page numbers, ungrounded-statement callouts |
+| Report export: DOCX | ✅ `docx` (pure JS OOXML writer) — same shared block parser; verified as a genuinely valid Word document (`word/document.xml` present and populated) |
+| CSV exports | ✅ `sources.csv`, `entities.csv`, `relationships.csv`, `timeline.csv`, `claims.csv`, `audit-log.csv` — dependency-free RFC 4180 writer, unit-tested |
+| `evidence.json` | ✅ full evidence rows incl. provenance |
+| Evidence package (`.zip`) | ✅ `jszip` bundles every CSV + `evidence.json` + the latest report as PDF & DOCX + `manifest.json` with a **sha256 checksum and byte count per file** (§48) |
+| UI | ✅ Analyst-tab Export section (package + individual files) and per-report format links |
+
+Verified E2E: generated report → downloaded as PDF (valid `%PDF` header) and
+DOCX (valid OOXML zip, `word/document.xml` contains the report title) →
+downloaded the full evidence package and confirmed all 10 files + a correct
+manifest.
 
 ## Phase 9 — Hardening
 

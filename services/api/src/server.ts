@@ -21,6 +21,7 @@ import { documentRoutes } from './modules/documents.routes.js';
 import { aiRoutes } from './modules/ai.routes.js';
 import { mediaRoutes } from './modules/media.routes.js';
 import { monitoringRoutes } from './modules/monitoring.routes.js';
+import { exportRoutes } from './modules/export.routes.js';
 import { dashboardRoutes } from './modules/dashboard.routes.js';
 import { sseRoutes } from './realtime/sse.js';
 import { registry } from './connectors/runtime.js';
@@ -72,8 +73,6 @@ export async function buildServer(): Promise<FastifyInstance> {
     notImplemented: [
       'Video / audio transcription (needs ffmpeg + a speech model — not bundled)',
       'Reverse image search (needs a provider API key)',
-      'PDF / DOCX report export (Markdown / HTML / JSON export works; Phase 8)',
-      'Evidence-package zip export with checksums (Phase 8)',
       'God Mode autonomous orchestrator (Phase 10)',
     ],
     implemented: [
@@ -87,6 +86,8 @@ export async function buildServer(): Promise<FastifyInstance> {
       'Media intelligence — image metadata, EXIF/GPS, perceptual-hash duplicate detection; vision-model OCR/description when a multimodal model is configured',
       'Semantic search (when an embedding provider is configured)',
       'Monitoring — scheduled search jobs (cron), change detection against the existing evidence corpus (new vs. changed vs. suppressed-duplicate), rate-limit + error tracking per run',
+      'Report export as PDF and DOCX (in addition to Markdown/HTML/JSON)',
+      'Full evidence package export (.zip: evidence.json, sources/entities/relationships/timeline/claims/audit-log CSVs, report.pdf/docx, sha256 manifest)',
       'AI research analyst — evidence-grounded Q&A, AI query expansion, report generation (when an AI provider is configured); anti-hallucination citation validation',
       'Explainable confidence ("WHY?") with exposed factors',
     ],
@@ -105,6 +106,7 @@ export async function buildServer(): Promise<FastifyInstance> {
       await api.register(aiRoutes);
       await api.register(mediaRoutes);
       await api.register(monitoringRoutes);
+      await api.register(exportRoutes);
       await api.register(jobRoutes);
       await api.register(dashboardRoutes);
       await api.register(sseRoutes);
