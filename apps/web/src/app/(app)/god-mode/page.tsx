@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 import { Badge, EmptyState, Spinner } from '@/components/ui';
+import { IconZap } from '@/components/icons';
 
 const SUBJECT_TYPES = ['', 'PERSON', 'ORGANIZATION', 'COMPANY', 'BRAND', 'PRODUCT', 'DOMAIN', 'USERNAME', 'TOPIC'];
 
@@ -64,15 +65,20 @@ export default function GodModePage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5">
-      <div>
-        <h1 className="text-lg font-semibold text-slate-100">God Mode</h1>
-        <p className="text-xs text-slate-500">
-          One autonomous investigation: plan → search every lawful configured source → collect evidence → resolve
-          entities → extract claims → correlate → build a timeline → flag contradictions → generate a report →
-          recommend next steps. Nothing here bypasses a platform&apos;s access controls, and every uncertainty is
-          reported, not hidden (§55, §56).
-        </p>
+    <div className="mx-auto max-w-2xl animate-in space-y-5">
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-signal-cyan text-ink-975 shadow-glow">
+          <IconZap className="h-[18px] w-[18px]" />
+        </span>
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-slate-100">God Mode</h1>
+          <p className="mt-0.5 text-sm leading-relaxed text-slate-500">
+            One autonomous investigation: plan → search every lawful configured source → collect evidence → resolve
+            entities → extract claims → correlate → build a timeline → flag contradictions → generate a report →
+            recommend next steps. Nothing here bypasses a platform&apos;s access controls, and every uncertainty is
+            reported, not hidden (§55, §56).
+          </p>
+        </div>
       </div>
 
       <form onSubmit={launch} className="card space-y-4 p-5">

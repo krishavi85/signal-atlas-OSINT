@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
-import { Badge, EmptyState, ErrorState, Spinner } from '@/components/ui';
+import { Badge, EmptyState, ErrorState, PageHeader, Spinner } from '@/components/ui';
+import { IconDatabase, IconFolder, IconPlus, IconRadar, IconUsers } from '@/components/icons';
 
 interface Project {
   id: string;
@@ -45,15 +46,18 @@ export default function InvestigationsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-slate-100">Investigations</h1>
-        <button className="btn-primary" onClick={() => setCreating((v) => !v)}>
-          {creating ? 'Cancel' : 'New investigation'}
-        </button>
-      </div>
+      <PageHeader
+        title="Investigations"
+        description="Cases collect evidence, entities, claims, and reports under one lawful research scope."
+        actions={
+          <button className="btn-primary" onClick={() => setCreating((v) => !v)}>
+            <IconPlus className="h-3.5 w-3.5" /> New investigation
+          </button>
+        }
+      />
 
       {creating && (
-        <form onSubmit={create} className="card space-y-3 p-4">
+        <form onSubmit={create} className="card animate-in space-y-3 p-4">
           <div>
             <label className="label">Name</label>
             <input className="input" value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
@@ -70,25 +74,37 @@ export default function InvestigationsPage() {
       )}
 
       {loading ? (
-        <Spinner />
+        <Spinner size="md" />
       ) : error ? (
         <ErrorState error={error} retry={reload} />
       ) : !data || data.length === 0 ? (
-        <EmptyState title="No investigations yet" hint="Create one to start collecting evidence." />
+        <EmptyState icon={<IconFolder className="h-5 w-5" />} title="No investigations yet" hint="Create one to start collecting evidence." />
       ) : (
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {data.map((p) => (
-            <Link key={p.id} href={`/investigations/${p.id}`} className="card block p-4 transition-colors hover:border-ink-600">
-              <div className="flex items-start justify-between">
-                <h2 className="font-medium text-slate-100">{p.name}</h2>
-                <Badge tone={p.status === 'ACTIVE' ? 'green' : p.status === 'PAUSED' ? 'amber' : 'neutral'}>{p.status}</Badge>
+            <Link key={p.id} href={`/investigations/${p.id}`} className="card-interactive group block p-4">
+              <div className="flex items-start justify-between gap-2">
+                <h2 className="font-medium text-slate-100 group-hover:text-white">{p.name}</h2>
+                <Badge dot tone={p.status === 'ACTIVE' ? 'green' : p.status === 'PAUSED' ? 'amber' : 'neutral'}>
+                  {p.status}
+                </Badge>
               </div>
-              {p.objective && <p className="mt-1 line-clamp-2 text-xs text-slate-500">{p.objective}</p>}
-              <div className="mt-3 flex gap-3 text-[11px] text-slate-500">
-                <span>{p._count.evidence} evidence</span>
-                <span>{p._count.entities} entities</span>
-                <span>{p._count.searches} searches</span>
-                <span className="ml-auto">{p.myRole}</span>
+              {p.objective ? (
+                <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-slate-500">{p.objective}</p>
+              ) : (
+                <p className="mt-1.5 text-xs italic text-slate-700">No objective set</p>
+              )}
+              <div className="mt-3.5 flex items-center gap-3 border-t border-ink-800 pt-3 text-[11px] text-slate-500">
+                <span className="flex items-center gap-1">
+                  <IconDatabase className="h-3 w-3" /> {p._count.evidence}
+                </span>
+                <span className="flex items-center gap-1">
+                  <IconUsers className="h-3 w-3" /> {p._count.entities}
+                </span>
+                <span className="flex items-center gap-1">
+                  <IconRadar className="h-3 w-3" /> {p._count.searches}
+                </span>
+                <span className="ml-auto rounded-full bg-ink-800 px-2 py-0.5 font-medium text-slate-400">{p.myRole.toLowerCase()}</span>
               </div>
             </Link>
           ))}

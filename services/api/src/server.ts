@@ -56,20 +56,11 @@ export async function buildServer(): Promise<FastifyInstance> {
 
   // Health / readiness (§50)
   app.get('/healthz', async () => ({ status: 'ok', uptime: process.uptime() }));
-  app.get('/readyz', async (_req, reply) => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      return { status: 'ready', db: 'ok', connectors: registry.ids().length };
-    } catch (err) {
-      reply.status(503);
-      return { status: 'not-ready', db: 'error', error: (err as Error).message };
-    }
-  });
   app.get('/version', async () => ({ name: 'osint-platform-api', version: '0.1.0', node: process.version }));
   await app.register(metricsRoutes);
 
   // Feature/capability manifest so the frontend can render honest states (§31, §51)
-  app.get('/manifest', async () => ({
+  const getManifest = async () => ({
     connectors: registry.ids(),
     ai: { provider: env.AI_PROVIDER, embeddings: env.AI_EMBEDDINGS_PROVIDER },
     jobDriver: env.JOB_DRIVER,
@@ -97,10 +88,26 @@ export async function buildServer(): Promise<FastifyInstance> {
       'Explainable confidence ("WHY?") with exposed factors',
       'God Mode — one TARGET/OBJECTIVE/DEPTH run composing every engine (search, evidence, entities, resolution, relationships, claims, corroboration, contradictions, timeline, report, monitoring recommendations) into the full §56 15-section result',
     ],
-  }));
+  });
+  const getReadyz = async (reply: import('fastify').FastifyReply) => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      return { status: 'ready', db: 'ok', connectors: registry.ids().length };
+    } catch (err) {
+      reply.status(503);
+      return { status: 'not-ready', db: 'error', error: (err as Error).message };
+    }
+  };
+  app.get('/manifest', getManifest);
+  app.get('/readyz', async (_req, reply) => getReadyz(reply));
 
   await app.register(
     async (api) => {
+      // The SPA fetches everything through a single `/api/v1`-prefixed client,
+      // so mirror the unauthenticated status routes here too (root paths above
+      // stay for infra-standard health checks that expect no prefix).
+      api.get('/readyz', async (_req, reply) => getReadyz(reply));
+      api.get('/manifest', getManifest);
       await api.register(authRoutes);
       await api.register(projectRoutes);
       await api.register(connectorRoutes);

@@ -1,30 +1,38 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { IconAlertTriangle, IconInbox } from './icons';
+
+export type Tone = 'neutral' | 'green' | 'amber' | 'red' | 'blue' | 'violet';
+
+const TONE_STYLES: Record<Tone, { badge: string; dot: string }> = {
+  neutral: { badge: 'bg-ink-800 text-slate-300 border-ink-700', dot: 'bg-slate-500' },
+  green: { badge: 'bg-emerald-950/70 text-emerald-300 border-emerald-800/70', dot: 'bg-emerald-400' },
+  amber: { badge: 'bg-amber-950/70 text-amber-300 border-amber-800/70', dot: 'bg-amber-400' },
+  red: { badge: 'bg-red-950/70 text-red-300 border-red-800/70', dot: 'bg-red-400' },
+  blue: { badge: 'bg-sky-950/70 text-sky-300 border-sky-800/70', dot: 'bg-sky-400' },
+  violet: { badge: 'bg-violet-950/70 text-violet-300 border-violet-800/70', dot: 'bg-violet-400' },
+};
 
 export function Badge({
   children,
   tone = 'neutral',
+  dot = false,
 }: {
   children: ReactNode;
-  tone?: 'neutral' | 'green' | 'amber' | 'red' | 'blue' | 'violet';
+  tone?: Tone;
+  dot?: boolean;
 }) {
-  const tones: Record<string, string> = {
-    neutral: 'bg-ink-800 text-slate-300 border-ink-700',
-    green: 'bg-emerald-950 text-emerald-300 border-emerald-800',
-    amber: 'bg-amber-950 text-amber-300 border-amber-800',
-    red: 'bg-red-950 text-red-300 border-red-800',
-    blue: 'bg-sky-950 text-sky-300 border-sky-800',
-    violet: 'bg-violet-950 text-violet-300 border-violet-800',
-  };
+  const t = TONE_STYLES[tone];
   return (
-    <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[11px] font-medium ${tones[tone]}`}>
+    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium leading-none ${t.badge}`}>
+      {dot && <span className={`h-1.5 w-1.5 rounded-full ${t.dot}`} />}
       {children}
     </span>
   );
 }
 
-export function healthTone(state?: string): 'green' | 'amber' | 'red' | 'neutral' {
+export function healthTone(state?: string): Tone {
   switch (state) {
     case 'ONLINE':
       return 'green';
@@ -39,7 +47,7 @@ export function healthTone(state?: string): 'green' | 'amber' | 'red' | 'neutral
   }
 }
 
-export function confidenceTone(level?: string): 'green' | 'amber' | 'red' | 'blue' | 'neutral' {
+export function confidenceTone(level?: string): Tone {
   switch (level) {
     case 'VERIFIED':
       return 'green';
@@ -55,20 +63,24 @@ export function confidenceTone(level?: string): 'green' | 'amber' | 'red' | 'blu
   }
 }
 
-export function Spinner({ label }: { label?: string }) {
+export function Spinner({ label, size = 'sm' }: { label?: string; size?: 'sm' | 'md' }) {
+  const dim = size === 'md' ? 'h-4 w-4 border-[2.5px]' : 'h-3 w-3 border-2';
   return (
-    <div className="flex items-center gap-2 text-sm text-slate-400">
-      <span className="h-3 w-3 animate-spin rounded-full border-2 border-slate-600 border-t-accent" />
+    <div className="flex items-center gap-2 py-1 text-sm text-slate-400">
+      <span className={`animate-spin rounded-full border-slate-700 border-t-accent ${dim}`} />
       {label ?? 'Loading…'}
     </div>
   );
 }
 
-export function EmptyState({ title, hint }: { title: string; hint?: string }) {
+export function EmptyState({ title, hint, icon }: { title: string; hint?: string; icon?: ReactNode }) {
   return (
-    <div className="rounded-lg border border-dashed border-ink-700 bg-ink-900/50 p-8 text-center">
+    <div className="animate-in flex flex-col items-center gap-2 rounded-xl border border-dashed border-ink-750 bg-ink-900/40 px-8 py-10 text-center">
+      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-ink-850 text-slate-500">
+        {icon ?? <IconInbox className="h-5 w-5" />}
+      </span>
       <p className="text-sm font-medium text-slate-300">{title}</p>
-      {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
+      {hint && <p className="max-w-sm text-xs leading-relaxed text-slate-500">{hint}</p>}
     </div>
   );
 }
@@ -76,23 +88,54 @@ export function EmptyState({ title, hint }: { title: string; hint?: string }) {
 export function ErrorState({ error, retry }: { error: unknown; retry?: () => void }) {
   const message = error instanceof Error ? error.message : 'Something went wrong';
   return (
-    <div className="rounded-lg border border-red-900 bg-red-950/40 p-4 text-sm text-red-300">
-      <p className="font-medium">Error</p>
-      <p className="mt-1 text-red-400">{message}</p>
-      {retry && (
-        <button onClick={retry} className="btn-ghost mt-3">
-          Retry
-        </button>
-      )}
+    <div className="animate-in flex items-start gap-3 rounded-xl border border-red-900/60 bg-red-950/30 p-4 text-sm">
+      <IconAlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
+      <div className="flex-1">
+        <p className="font-medium text-red-300">Something went wrong</p>
+        <p className="mt-0.5 text-xs text-red-400/90">{message}</p>
+        {retry && (
+          <button onClick={retry} className="btn-ghost mt-3 py-1 text-xs">
+            Retry
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
-export function Stat({ label, value, tone }: { label: string; value: ReactNode; tone?: string }) {
+export function Stat({
+  label,
+  value,
+  tone,
+  icon,
+  hint,
+}: {
+  label: string;
+  value: ReactNode;
+  tone?: string;
+  icon?: ReactNode;
+  hint?: string;
+}) {
   return (
-    <div className="card p-4">
-      <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold ${tone ?? 'text-slate-100'}`}>{value}</p>
+    <div className="card group relative overflow-hidden p-4">
+      <div className="flex items-center justify-between gap-2">
+        <p className="eyebrow">{label}</p>
+        {icon && <span className="text-slate-600 transition-colors group-hover:text-slate-400">{icon}</span>}
+      </div>
+      <p className={`mt-1.5 text-2xl font-semibold tabular-nums tracking-tight ${tone ?? 'text-slate-100'}`}>{value}</p>
+      {hint && <p className="mt-0.5 text-[11px] text-slate-600">{hint}</p>}
+    </div>
+  );
+}
+
+export function PageHeader({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
+  return (
+    <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight text-slate-100">{title}</h1>
+        {description && <p className="mt-1 max-w-2xl text-sm text-slate-500">{description}</p>}
+      </div>
+      {actions && <div className="flex items-center gap-2">{actions}</div>}
     </div>
   );
 }

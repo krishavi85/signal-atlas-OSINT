@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 import { Badge, EmptyState, Spinner } from '@/components/ui';
+import { IconSearch } from '@/components/icons';
 
 /**
  * Universal Search (§4) — a single entry point that dispatches into an
@@ -46,13 +47,18 @@ export default function UniversalSearchPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5">
-      <div>
-        <h1 className="text-lg font-semibold text-slate-100">Universal Search</h1>
-        <p className="text-xs text-slate-500">
-          One query across every lawful configured source. Results are filed as source-backed evidence in an
-          investigation.
-        </p>
+    <div className="mx-auto max-w-2xl animate-in space-y-5">
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-ink-700 bg-ink-850 text-accent-bright">
+          <IconSearch className="h-4 w-4" />
+        </span>
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-slate-100">Universal Search</h1>
+          <p className="mt-0.5 text-sm text-slate-500">
+            One query across every lawful configured source. Results are filed as source-backed evidence in an
+            investigation.
+          </p>
+        </div>
       </div>
 
       <form onSubmit={go} className="card space-y-4 p-5">

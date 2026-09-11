@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 import { useAuth } from '@/lib/auth';
-import { Badge, EmptyState, ErrorState, Spinner, healthTone } from '@/components/ui';
+import { Badge, EmptyState, ErrorState, PageHeader, Spinner, healthTone } from '@/components/ui';
+import { IconAlertTriangle, IconPlug } from '@/components/icons';
 
 interface ConnectorRow {
   connectorId: string;
@@ -49,7 +50,7 @@ export default function ConnectorsPage() {
     }
   }
 
-  if (loading) return <Spinner />;
+  if (loading) return <Spinner size="md" />;
   if (error) return <ErrorState error={error} retry={reload} />;
   if (!data) return null;
 
@@ -57,26 +58,32 @@ export default function ConnectorsPage() {
     (acc[c.category] ??= []).push(c);
     return acc;
   }, {});
+  const onlineCount = data.filter((c) => c.health?.state === 'ONLINE').length;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold text-slate-100">Connectors</h1>
-        <p className="text-xs text-slate-500">
-          Capability registry (§31) and health (§32). Unavailable operations are shown honestly with the exact missing
-          dependency — nothing returns fabricated data.
-        </p>
-      </div>
+      <PageHeader
+        title="Connectors"
+        description="Capability registry (§31) and health (§32). Unavailable operations are shown honestly with the exact missing dependency — nothing returns fabricated data."
+        actions={
+          <span className="flex items-center gap-1.5 text-xs text-slate-500">
+            <IconPlug className="h-3.5 w-3.5" />
+            {onlineCount}/{data.length} online
+          </span>
+        }
+      />
 
       {Object.entries(byCategory).map(([cat, rows]) => (
         <section key={cat} className="space-y-2">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{cat}</h2>
+          <h2 className="eyebrow">{cat}</h2>
           {rows.map((c) => (
             <div key={c.connectorId} className="card p-4">
               <div className="flex flex-wrap items-center gap-2">
+                <Badge dot tone={healthTone(c.health?.state)}>
+                  {c.health?.state ?? 'UNKNOWN'}
+                </Badge>
                 <span className="font-medium text-slate-100">{c.displayName}</span>
-                <code className="text-[11px] text-slate-600">{c.connectorId}</code>
-                <Badge tone={healthTone(c.health?.state)}>{c.health?.state ?? 'UNKNOWN'}</Badge>
+                <code className="mono-id">{c.connectorId}</code>
                 {c.health?.latencyMs != null && <span className="text-[11px] text-slate-600">{c.health.latencyMs}ms</span>}
                 {c.hasStoredCredentials && <Badge tone="blue">credentials stored</Badge>}
                 <button
@@ -88,32 +95,36 @@ export default function ConnectorsPage() {
                 </button>
               </div>
 
-              {c.health?.message && <p className="mt-1 text-xs text-slate-500">{c.health.message}</p>}
+              {c.health?.message && <p className="mt-1.5 text-xs text-slate-500">{c.health.message}</p>}
 
-              <div className="mt-2 flex flex-wrap gap-1">
+              <div className="mt-2.5 flex flex-wrap gap-1">
                 {Object.keys(CAP_LABELS).map((cap) => {
                   const declared = c.declared[cap];
                   const effective = c.effective[cap];
                   if (!declared) return null;
                   return (
-                    <Badge key={cap} tone={effective ? 'green' : 'red'}>
-                      {CAP_LABELS[cap]} {effective ? '✓' : '✕'}
+                    <Badge key={cap} tone={effective ? 'green' : 'neutral'}>
+                      {CAP_LABELS[cap]} {effective ? '✓' : '—'}
                     </Badge>
                   );
                 })}
               </div>
 
               {c.gaps.length > 0 && (
-                <ul className="mt-2 space-y-1 text-xs">
+                <ul className="mt-2.5 space-y-1.5 text-xs">
                   {c.gaps.map((g, i) => (
-                    <li key={i} className="rounded border border-amber-900/60 bg-amber-950/20 p-2 text-amber-300">
-                      <span className="font-mono text-[10px] text-amber-500">{g.code}</span> {g.message}
-                      {g.requiredConfig && (
-                        <span className="mt-0.5 block text-amber-500">
-                          Set: {g.requiredConfig.join(', ')}
-                          {me?.role === 'ADMIN' && ' (via PUT /api/v1/connectors/' + c.connectorId + '/credentials)'}
-                        </span>
-                      )}
+                    <li key={i} className="flex items-start gap-1.5 rounded-lg border border-amber-900/50 bg-amber-950/20 p-2.5 text-amber-300">
+                      <IconAlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+                      <span>
+                        <span className="mr-1 font-mono text-[10px] text-amber-500">{g.code}</span>
+                        {g.message}
+                        {g.requiredConfig && (
+                          <span className="mt-0.5 block text-amber-500/90">
+                            Set: {g.requiredConfig.join(', ')}
+                            {me?.role === 'ADMIN' && ' (via PUT /api/v1/connectors/' + c.connectorId + '/credentials)'}
+                          </span>
+                        )}
+                      </span>
                     </li>
                   ))}
                 </ul>

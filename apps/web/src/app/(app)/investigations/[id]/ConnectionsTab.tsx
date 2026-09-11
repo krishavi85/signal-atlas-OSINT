@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useApi } from '@/lib/useApi';
 import { Badge, EmptyState, ErrorState, Spinner } from '@/components/ui';
+import { IconLink } from '@/components/icons';
 
 interface GNode {
   id: string;
@@ -91,15 +92,18 @@ function layout(nodes: GNode[], edges: GEdge[], w: number, h: number): Map<strin
       p.y += Math.max(-12, Math.min(12, p.vy));
       p.vx *= 0.82;
       p.vy *= 0.82;
-      p.x = Math.max(20, Math.min(w - 20, p.x));
-      p.y = Math.max(20, Math.min(h - 20, p.y));
+      p.x = Math.max(24, Math.min(w - 24, p.x));
+      p.y = Math.max(24, Math.min(h - 24, p.y));
     }
   }
   return pos;
 }
 
+const MAX_ISOLATED_SHOWN = 40;
+
 export function ConnectionsTab({ projectId }: { projectId: string }) {
   const [minEvidence, setMinEvidence] = useState(1);
+  const [showIsolated, setShowIsolated] = useState(false);
   const { data, error, loading, reload } = useApi<{ nodes: GNode[]; edges: GEdge[] }>(
     `/projects/${projectId}/graph?minEvidence=${minEvidence}`,
     [minEvidence],
@@ -108,42 +112,77 @@ export function ConnectionsTab({ projectId }: { projectId: string }) {
   const W = 760;
   const H = 460;
 
-  const pos = useMemo(() => (data ? layout(data.nodes, data.edges, W, H) : new Map<string, Pt>()), [data]);
+  // A graph endpoint that returns every entity meeting minEvidence — including
+  // ones with zero relationships — reads as noise, not a "connection" graph.
+  // Default to connected nodes only; isolated ones are an explicit opt-in,
+  // capped, so a few hundred stray dots never turn the canvas into static.
+  const { visibleNodes, isolatedCount } = useMemo(() => {
+    if (!data) return { visibleNodes: [] as GNode[], isolatedCount: 0 };
+    const connectedIds = new Set<string>();
+    for (const e of data.edges) {
+      connectedIds.add(e.source);
+      connectedIds.add(e.target);
+    }
+    const connected = data.nodes.filter((n) => connectedIds.has(n.id));
+    const isolated = data.nodes.filter((n) => !connectedIds.has(n.id));
+    if (!showIsolated) return { visibleNodes: connected, isolatedCount: isolated.length };
+    const extra = [...isolated].sort((a, b) => b.evidenceCount - a.evidenceCount).slice(0, MAX_ISOLATED_SHOWN);
+    return { visibleNodes: [...connected, ...extra], isolatedCount: Math.max(0, isolated.length - extra.length) };
+  }, [data, showIsolated]);
 
-  if (loading) return <Spinner />;
+  const pos = useMemo(() => layout(visibleNodes, data?.edges ?? [], W, H), [visibleNodes, data]);
+
+  if (loading) return <Spinner size="md" />;
   if (error) return <ErrorState error={error} retry={reload} />;
   if (!data || data.nodes.length === 0)
     return (
       <EmptyState
+        icon={<IconLink className="h-5 w-5" />}
         title="No connection graph yet"
         hint="Edges are built from entity co-mentions across ≥2 evidence records, author links, and shared domains — each traceable to evidence (§8)."
       />
     );
 
-  const selNode = data.nodes.find((n) => n.id === selected);
+  const visibleEdges = data.edges.filter((e) => pos.has(e.source) && pos.has(e.target));
+  const selNode = visibleNodes.find((n) => n.id === selected);
   const selEdges = data.edges.filter((e) => e.source === selected || e.target === selected);
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
       <div className="space-y-2">
-        <div className="flex items-center gap-2 text-xs">
-          <span className="text-slate-500">Min evidence per node</span>
-          {[1, 2, 3].map((n) => (
-            <button
-              key={n}
-              onClick={() => setMinEvidence(n)}
-              className={`rounded px-2 py-1 ${minEvidence === n ? 'bg-ink-800 text-slate-100' : 'text-slate-500'}`}
-            >
-              {n}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-3 text-xs">
+          <span className="flex items-center gap-1.5 text-slate-500">
+            Min evidence
+            <span className="flex gap-0.5 rounded-md bg-ink-950 p-0.5">
+              {[1, 2, 3].map((n) => (
+                <button
+                  key={n}
+                  onClick={() => setMinEvidence(n)}
+                  className={`rounded px-1.5 py-0.5 ${minEvidence === n ? 'bg-ink-750 text-slate-100' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                  {n}
+                </button>
+              ))}
+            </span>
+          </span>
+          <label className="flex items-center gap-1.5 text-slate-500">
+            <input type="checkbox" checked={showIsolated} onChange={(e) => setShowIsolated(e.target.checked)} />
+            show unconnected entities
+          </label>
           <span className="ml-auto text-slate-600">
-            {data.nodes.length} nodes · {data.edges.length} edges
+            {visibleNodes.length} shown · {visibleEdges.length} edges
+            {!showIsolated && isolatedCount > 0 && ` · ${isolatedCount} unconnected hidden`}
           </span>
         </div>
         <div className="card overflow-hidden">
           <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
-            {data.edges.map((e) => {
+            <defs>
+              <pattern id="graph-dots" width="22" height="22" patternUnits="userSpaceOnUse">
+                <circle cx="1" cy="1" r="1" fill="#1a2230" />
+              </pattern>
+            </defs>
+            <rect width={W} height={H} fill="url(#graph-dots)" />
+            {visibleEdges.map((e) => {
               const a = pos.get(e.source);
               const b = pos.get(e.target);
               if (!a || !b) return null;
@@ -155,27 +194,29 @@ export function ConnectionsTab({ projectId }: { projectId: string }) {
                   y1={a.y}
                   x2={b.x}
                   y2={b.y}
-                  stroke={hot ? '#4f9cf9' : '#334155'}
-                  strokeWidth={hot ? 1.6 : e.confidence === 'MEDIUM' ? 1.2 : 0.7}
+                  stroke={hot ? '#4f9cf9' : '#33405480'}
+                  strokeWidth={hot ? 1.8 : e.confidence === 'MEDIUM' ? 1.2 : 0.8}
                 />
               );
             })}
-            {data.nodes.map((n) => {
+            {visibleNodes.map((n) => {
               const p = pos.get(n.id);
               if (!p) return null;
-              const r = 4 + Math.min(10, Math.sqrt(n.evidenceCount) * 2.2);
+              const r = 4 + Math.min(11, Math.sqrt(n.evidenceCount) * 2.2);
+              const active = selected === n.id;
               return (
                 <g key={n.id} transform={`translate(${p.x},${p.y})`} onClick={() => setSelected(n.id)} className="cursor-pointer">
-                  <circle r={r} fill={TYPE_COLOR[n.type] ?? '#64748b'} stroke={selected === n.id ? '#fff' : '#0f1520'} strokeWidth={selected === n.id ? 2 : 1} />
-                  <text x={r + 3} y={4} fontSize={9} fill="#cbd5e1">
-                    {n.label.length > 22 ? n.label.slice(0, 21) + '…' : n.label}
+                  {active && <circle r={r + 5} fill="none" stroke={TYPE_COLOR[n.type] ?? '#64748b'} strokeWidth={1} strokeOpacity={0.4} />}
+                  <circle r={r} fill={TYPE_COLOR[n.type] ?? '#64748b'} stroke={active ? '#fff' : '#0a0d14'} strokeWidth={active ? 2 : 1.2} />
+                  <text x={r + 4} y={3.5} fontSize={9.5} fill={active ? '#f1f5f9' : '#94a3b8'} fontWeight={active ? 600 : 400}>
+                    {n.label.length > 24 ? n.label.slice(0, 23) + '…' : n.label}
                   </text>
                 </g>
               );
             })}
           </svg>
         </div>
-        <div className="flex flex-wrap gap-2 text-[11px]">
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500">
           {Object.entries(TYPE_COLOR).map(([t, c]) => (
             <span key={t} className="flex items-center gap-1">
               <span className="h-2 w-2 rounded-full" style={{ background: c }} /> {t}
@@ -186,7 +227,7 @@ export function ConnectionsTab({ projectId }: { projectId: string }) {
 
       <aside className="lg:sticky lg:top-20 lg:self-start">
         {selNode ? (
-          <div className="card space-y-2 p-4 text-sm">
+          <div className="card animate-in space-y-2 p-4 text-sm">
             <p className="font-medium text-slate-100">
               <Badge tone="violet">{selNode.type}</Badge> {selNode.label}
             </p>
@@ -201,13 +242,13 @@ export function ConnectionsTab({ projectId }: { projectId: string }) {
                 return (
                   <li key={e.id} className="flex items-center gap-1.5">
                     <Badge tone={e.confidence === 'MEDIUM' ? 'blue' : 'neutral'}>{e.type}</Badge>
-                    <span className="text-slate-400">{other?.label ?? otherId}</span>
-                    <span className="ml-auto text-slate-600">{e.evidenceIds.length} ev</span>
+                    <span className="truncate text-slate-400">{other?.label ?? otherId}</span>
+                    <span className="ml-auto shrink-0 text-slate-600">{e.evidenceIds.length} ev</span>
                   </li>
                 );
               })}
             </ul>
-            <p className="text-[11px] text-slate-600">
+            <p className="border-t border-ink-800 pt-2 text-[11px] leading-relaxed text-slate-600">
               Co-mention edges mean the entities appeared together in evidence — <strong>not</strong> an asserted personal
               relationship (§8).
             </p>

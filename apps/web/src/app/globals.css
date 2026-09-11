@@ -6,27 +6,118 @@
   color-scheme: dark;
 }
 
+* {
+  scrollbar-color: theme('colors.ink.700') transparent;
+  scrollbar-width: thin;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: theme('colors.ink.700');
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: theme('colors.ink.600');
+  background-clip: padding-box;
+}
+
+html {
+  font-feature-settings: 'ss01', 'cv01';
+}
+
 body {
   @apply bg-ink-950 text-slate-200 antialiased;
+  background-image: theme('backgroundImage.grid-fade');
+  background-attachment: fixed;
+}
+
+::selection {
+  background: theme('colors.accent.DEFAULT' / 30%);
+  color: #fff;
 }
 
 @layer components {
+  /* ── surfaces ─────────────────────────────────────────────────────── */
   .card {
-    @apply rounded-lg border border-ink-700 bg-ink-900;
+    @apply rounded-xl border border-ink-750 bg-ink-900/80 shadow-card backdrop-blur-sm;
   }
+  .card-interactive {
+    @apply card transition-all duration-150 hover:border-ink-600 hover:bg-ink-850/80;
+  }
+  .surface-sunken {
+    @apply rounded-lg border border-ink-800 bg-ink-950/60;
+  }
+  .panel-header {
+    @apply flex items-center gap-2 border-b border-ink-800 pb-2.5;
+  }
+
+  /* ── buttons ──────────────────────────────────────────────────────── */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium
+      transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50
+      disabled:cursor-not-allowed disabled:opacity-40;
   }
   .btn-primary {
-    @apply btn bg-accent text-white hover:bg-accent-muted;
+    @apply btn bg-gradient-to-b from-accent to-accent-muted text-white shadow-[0_1px_0_0_rgb(255_255_255_/_0.15)_inset,0_1px_3px_rgb(0_0_0_/_0.3)]
+      hover:brightness-110 active:brightness-95;
   }
   .btn-ghost {
-    @apply btn border border-ink-700 bg-ink-850 text-slate-300 hover:bg-ink-800;
+    @apply btn border border-ink-700 bg-ink-850/60 text-slate-300 hover:border-ink-600 hover:bg-ink-800 hover:text-slate-100;
   }
+  .btn-danger {
+    @apply btn border border-red-900/60 bg-red-950/40 text-red-300 hover:border-red-800 hover:bg-red-950/70 hover:text-red-200;
+  }
+  .btn-icon {
+    @apply btn h-8 w-8 shrink-0 p-0;
+  }
+
+  /* ── forms ────────────────────────────────────────────────────────── */
   .input {
-    @apply w-full rounded-md border border-ink-700 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-accent;
+    @apply w-full rounded-lg border border-ink-700 bg-ink-950/80 px-3 py-2 text-sm text-slate-100 outline-none transition-colors
+      placeholder:text-slate-600 hover:border-ink-600 focus:border-accent focus:ring-1 focus:ring-accent/40;
   }
   .label {
-    @apply mb-1 block text-xs font-medium uppercase tracking-wide text-slate-400;
+    @apply mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-500;
+  }
+
+  /* ── typography helpers ───────────────────────────────────────────── */
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-wider text-slate-500;
+  }
+  .section-title {
+    @apply text-sm font-semibold text-slate-100;
+  }
+  .kbd {
+    @apply rounded border border-ink-700 bg-ink-850 px-1.5 py-0.5 font-mono text-[10px] text-slate-400;
+  }
+  .mono-id {
+    @apply font-mono text-[11px] tracking-tight text-slate-500;
+  }
+
+  /* ── misc ─────────────────────────────────────────────────────────── */
+  .divider-x {
+    @apply border-t border-ink-800;
+  }
+  .glow-ring {
+    @apply shadow-glow;
+  }
+  .animate-in {
+    @apply animate-fade-in;
+  }
+}
+
+@layer utilities {
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
   }
 }

@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 import { Badge, ErrorState, Spinner, confidenceTone } from '@/components/ui';
+import { IconArrowRight, IconZap } from '@/components/icons';
 
 interface GodModeRun {
   id: string;
@@ -43,10 +44,10 @@ interface GodModeResult {
 
 function Section({ title, sub, children }: { title: string; sub?: string; children: React.ReactNode }) {
   return (
-    <section className="card p-4">
-      <h2 className="text-sm font-semibold text-slate-200">{title}</h2>
+    <section className="card animate-in p-4">
+      <h2 className="section-title">{title}</h2>
       {sub && <p className="mt-0.5 text-xs text-slate-500">{sub}</p>}
-      <div className="mt-2">{children}</div>
+      <div className="mt-2.5">{children}</div>
     </section>
   );
 }
@@ -70,21 +71,31 @@ export default function GodModeResultPage() {
   const r = data.resultJson;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-lg font-semibold text-slate-100">God Mode: {data.target}</h1>
-        <Badge tone={data.status === 'COMPLETED' ? 'green' : data.status === 'PARTIAL' ? 'amber' : data.status === 'FAILED' ? 'red' : 'blue'}>
-          {data.status}
-        </Badge>
-        <Badge>{data.depth}</Badge>
-        <Link href={`/investigations/${data.projectId}`} className="ml-auto text-xs text-accent hover:underline">
-          open investigation →
+    <div className="mx-auto max-w-4xl animate-in space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-signal-cyan text-ink-975 shadow-glow">
+          <IconZap className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <h1 className="truncate text-lg font-semibold tracking-tight text-slate-100">{data.target}</h1>
+          <div className="mt-0.5 flex items-center gap-1.5">
+            <Badge dot tone={data.status === 'COMPLETED' ? 'green' : data.status === 'PARTIAL' ? 'amber' : data.status === 'FAILED' ? 'red' : 'blue'}>
+              {data.status}
+            </Badge>
+            <Badge>{data.depth}</Badge>
+          </div>
+        </div>
+        <Link
+          href={`/investigations/${data.projectId}`}
+          className="ml-auto flex items-center gap-1 text-xs font-medium text-accent hover:text-accent-bright"
+        >
+          Open investigation <IconArrowRight className="h-3 w-3" />
         </Link>
       </div>
 
       {inFlight && (
         <div className="card p-4">
-          <Spinner label="Running the full pipeline: search → evidence → entities → claims → correlation → timeline → report…" />
+          <Spinner size="md" label="Running the full pipeline: search → evidence → entities → claims → correlation → timeline → report…" />
           <p className="mt-2 text-xs text-slate-500">This composes every engine end to end; DEEP mode can take a few minutes.</p>
         </div>
       )}
