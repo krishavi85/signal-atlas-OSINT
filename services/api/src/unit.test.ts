@@ -16,6 +16,8 @@ const { perceptualHash, hammingHex, isDuplicateImage, extractImageMeta } = await
 const { computeNextRun, validateCron } = await import('./orchestrator/MonitoringEngine.js');
 const { toCsv } = await import('./lib/csv.js');
 const { parseMarkdownBlocks } = await import('./lib/markdownBlocks.js');
+const { LocalStorage } = await import('./lib/storage.js');
+const { buildJobDiagnostics } = await import('./modules/jobs.routes.js');
 
 test('crypto: AES-256-GCM round trip + tamper detection', () => {
   const enc = encryptSecret('super-secret-token');
@@ -172,6 +174,78 @@ test('toCsv: quotes embedded commas/quotes/newlines, serializes arrays and dates
   assert.equal(lines[0], 'name,note,tags,when');
   assert.equal(lines[1], '"Acme, Inc.","has ""quotes""",a; b,2026-01-01T00:00:00.000Z');
   assert.equal(lines[2], '"multi\nline",,,');
+});
+
+test('toCsv: neutralizes spreadsheet formula injection (§40)', () => {
+  const csv = toCsv(
+    [{ name: '=1+1', note: '+1+1', other: '-2', at: '@SUM(1,1)', safe: 'Acme Corp' }],
+    ['name', 'note', 'other', 'at', 'safe'],
+  );
+  const line = csv.trim().split('\r\n')[1]!;
+  assert.equal(line, `'=1+1,'+1+1,'-2,"'@SUM(1,1)",Acme Corp`);
+});
+
+test('LocalStorage: blocks path traversal (relative escape and absolute-path override)', async () => {
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const fs = await import('node:fs/promises');
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'osint-storage-test-'));
+  // create a sibling directory whose name starts with the same prefix as root,
+  // to prove the fix isn't just string-prefix matching (`root + sep` boundary)
+  const siblingWithSharedPrefix = `${root}-evil`;
+  await fs.mkdir(siblingWithSharedPrefix, { recursive: true });
+  await fs.writeFile(path.join(siblingWithSharedPrefix, 'secret.txt'), 'top secret');
+
+  const storage = new LocalStorage(root);
+  await assert.rejects(() => storage.get('../../../../etc/passwd'), /path traversal blocked/);
+  await assert.rejects(() => storage.get(process.platform === 'win32' ? 'C:\\Windows\\win.ini' : '/etc/passwd'), /path traversal blocked/);
+  await assert.rejects(() => storage.get('../' + path.basename(siblingWithSharedPrefix) + '/secret.txt'), /path traversal blocked/);
+
+  // a normal write+read inside root still works
+  const stored = await storage.put('docs', Buffer.from('hello'), 'txt');
+  const back = await storage.get(stored.key);
+  assert.equal(back.toString('utf8'), 'hello');
+
+  await fs.rm(root, { recursive: true, force: true });
+  await fs.rm(siblingWithSharedPrefix, { recursive: true, force: true });
+});
+
+function fakeJob(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 'job1', projectId: 'p1', type: 'RESEARCH_RUN', status: 'FAILED', priority: 0,
+    payloadJson: {}, progressJson: null, stepsJson: null, attempts: 3, maxAttempts: 3,
+    error: 'Connector "reddit" search failed: HTTP 429 Too Many Requests',
+    lockedBy: null, lockedAt: null, scheduledAt: new Date(), startedAt: new Date(), finishedAt: new Date(),
+    createdAt: new Date(), updatedAt: new Date(),
+    ...overrides,
+  } as unknown as Parameters<typeof buildJobDiagnostics>[0];
+}
+
+test('buildJobDiagnostics: exhausted retries explains WHAT/WHERE/WHY/DATA-LOST/RETRY', () => {
+  const d = buildJobDiagnostics(fakeJob());
+  assert.match(d.what, /research run/i);
+  assert.match(d.where, /HTTP 429/);
+  assert.match(d.why, /429/);
+  assert.match(d.dataLost, /Exhausted 3 attempt/);
+  assert.match(d.howToRetry, /retries are exhausted/i);
+});
+
+test('buildJobDiagnostics: still-retrying failure says so, not "exhausted"', () => {
+  const d = buildJobDiagnostics(fakeJob({ attempts: 1, maxAttempts: 3, status: 'QUEUED' }));
+  assert.match(d.why, /re-queued for retry/);
+  assert.match(d.howToRetry, /no action needed/i);
+});
+
+test('buildJobDiagnostics: PARTIAL never claims data loss for the steps that succeeded', () => {
+  const d = buildJobDiagnostics(fakeJob({ status: 'PARTIAL', error: 'connector "hackernews" timed out' }));
+  assert.match(d.dataLost, /kept/i);
+  assert.match(d.howToRetry, /re-runs only the steps/i);
+});
+
+test('buildJobDiagnostics: COMPLETED reports no failure and nothing to retry', () => {
+  const d = buildJobDiagnostics(fakeJob({ status: 'COMPLETED', error: null, attempts: 1 }));
+  assert.match(d.why, /N\/A/);
+  assert.match(d.dataLost, /None/);
 });
 
 test('parseMarkdownBlocks: headings, paragraphs, lists, tables, blockquotes', () => {

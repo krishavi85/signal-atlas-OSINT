@@ -12,7 +12,15 @@ coverage/
 services/api/prisma/*.db
 services/api/prisma/*.db-journal
 services/api/prisma/dev.db*
+# Prisma resolves a relative sqlite `file:` URL relative to schema.prisma's own
+# directory, i.e. services/api/prisma/, so a DATABASE_URL of "file:./prisma/dev.db"
+# actually lands one level deeper than it looks (prisma/prisma/dev.db) — cover
+# that nesting explicitly, since the pattern above alone missed it.
+services/api/prisma/**/*.db
+services/api/prisma/**/*.db-journal
 data/
 storage/
+services/api/backups/
+services/api/.before-restore/
 .DS_Store
 .turbo/

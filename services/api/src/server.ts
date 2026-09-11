@@ -22,6 +22,7 @@ import { aiRoutes } from './modules/ai.routes.js';
 import { mediaRoutes } from './modules/media.routes.js';
 import { monitoringRoutes } from './modules/monitoring.routes.js';
 import { exportRoutes } from './modules/export.routes.js';
+import { metricsRoutes } from './modules/metrics.routes.js';
 import { dashboardRoutes } from './modules/dashboard.routes.js';
 import { sseRoutes } from './realtime/sse.js';
 import { registry } from './connectors/runtime.js';
@@ -43,7 +44,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(rateLimit, {
     max: 300,
     timeWindow: '1 minute',
-    allowList: (req) => req.url === '/healthz' || req.url === '/readyz',
+    allowList: (req) => req.url === '/healthz' || req.url === '/readyz' || req.url === '/metrics',
   });
   await app.register(multipart, { limits: { fileSize: 25 * 1024 * 1024, files: 1 } });
 
@@ -64,6 +65,7 @@ export async function buildServer(): Promise<FastifyInstance> {
     }
   });
   app.get('/version', async () => ({ name: 'osint-platform-api', version: '0.1.0', node: process.version }));
+  await app.register(metricsRoutes);
 
   // Feature/capability manifest so the frontend can render honest states (§31, §51)
   app.get('/manifest', async () => ({
@@ -73,6 +75,8 @@ export async function buildServer(): Promise<FastifyInstance> {
     notImplemented: [
       'Video / audio transcription (needs ffmpeg + a speech model — not bundled)',
       'Reverse image search (needs a provider API key)',
+      'Distributed tracing (needs an OpenTelemetry collector)',
+      'Load/performance test harness',
       'God Mode autonomous orchestrator (Phase 10)',
     ],
     implemented: [
@@ -87,6 +91,7 @@ export async function buildServer(): Promise<FastifyInstance> {
       'Semantic search (when an embedding provider is configured)',
       'Monitoring — scheduled search jobs (cron), change detection against the existing evidence corpus (new vs. changed vs. suppressed-duplicate), rate-limit + error tracking per run',
       'Report export as PDF and DOCX (in addition to Markdown/HTML/JSON)',
+      'Prometheus /metrics + per-job WHAT/WHERE/WHY/DATA-LOST/RETRY diagnostics, backup/restore scripts, migration integrity check',
       'Full evidence package export (.zip: evidence.json, sources/entities/relationships/timeline/claims/audit-log CSVs, report.pdf/docx, sha256 manifest)',
       'AI research analyst — evidence-grounded Q&A, AI query expansion, report generation (when an AI provider is configured); anti-hallucination citation validation',
       'Explainable confidence ("WHY?") with exposed factors',

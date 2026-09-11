@@ -89,8 +89,20 @@ provider (Ollama/OpenAI) unlocks semantic search. See
 ## Tests
 
 ```bash
-npm test               # unit + connector-contract + api integration
+npm test                          # unit + connector-contract + api unit tests
+npm run db:verify -w @osint/api   # migration integrity: fresh DB + prisma migrate deploy
 ```
+
+## Backup & restore
+
+```bash
+npm run backup -w @osint/api                 # -> services/api/backups/<timestamp>/
+npm run restore -w @osint/api -- <dir> --yes  # stop the API first
+```
+
+See [`docs/SECURITY.md`](docs/SECURITY.md) for the full hardening posture
+(§40 checklist, dependency audit triage, §49 failure-scenario coverage, §50
+observability).
 
 ## Documentation
 
@@ -101,3 +113,4 @@ npm test               # unit + connector-contract + api integration
 - [`docs/EVIDENCE.md`](docs/EVIDENCE.md) — evidence IDs, provenance, confidence model
 - [`docs/LEGAL.md`](docs/LEGAL.md) — legal & privacy safeguards, retention
 - [`docs/AI.md`](docs/AI.md) — provider abstraction, anti-hallucination, cost control
+- [`docs/SECURITY.md`](docs/SECURITY.md) — §40 checklist, test coverage, observability, backup/restore

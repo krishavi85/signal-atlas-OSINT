@@ -127,10 +127,20 @@ DOCX (valid OOXML zip, `word/document.xml` contains the report title) →
 downloaded the full evidence package and confirmed all 10 files + a correct
 manifest.
 
-## Phase 9 — Hardening
+## Phase 9 — Hardening  🟡 core items done; see `docs/SECURITY.md`
 
-Security tests, load/perf, tracing, error reporting, backup/restore scripts,
-rate-limit tuning. 🟡 ongoing.
+| Item | State |
+|---|---|
+| Security fixes found + fixed this pass | ✅ path-traversal bug in local storage (prefix-matching, not boundary-checked — real bug, now regression-tested), CSV/spreadsheet formula injection, auth-endpoint brute-force rate limiting |
+| Dependency scanning | ✅ `npm audit` triaged in `docs/SECURITY.md` — 1 devDependency-only issue, 1 build-time-only issue, 1 accepted-with-mitigation runtime issue (`image-size`), none silently ignored |
+| §49 failure-scenario tests | ✅ connector timeout/backoff, malformed/duplicate results, DB-outage `/readyz` behavior, invalid credentials, partial/cancelled job diagnostics, conflicting evidence — see the table in `docs/SECURITY.md` |
+| Migration tests | ✅ `npm run db:verify` applies every migration to a brand-new SQLite file |
+| Backup / restore | ✅ `scripts/backup.mjs` + `scripts/restore.mjs`, **verified**: backed up a live DB, deleted it, restored, confirmed identical row counts |
+| Observability: `/metrics` | ✅ real Prometheus exposition (job/evidence/project/connector-health counts, process stats) — closes the "Prometheus /metrics pending" gap from Phase 1 |
+| Observability: job diagnostics | ✅ `GET /jobs/:id/diagnostics` — WHAT/WHERE/WHY/DATA-LOST/RETRY per §50, rule-based from the job's real recorded state |
+| Load/performance testing | ⚪ not done — no load-test harness or benchmarks yet |
+| Tracing | ⚪ not implemented (would need an OTel collector); structured request-id-tagged logs are the practical substitute today |
+| TLS termination | 🟡 operator responsibility (reverse proxy), documented in `docs/SECURITY.md` |
 
 ## Phase 10 — God Mode orchestrator (§55, §56)
 

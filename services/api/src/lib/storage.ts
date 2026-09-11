@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { loadEnv } from '../env.js';
 import { logger } from '../logger.js';
 
@@ -21,12 +21,19 @@ export interface StorageDriver {
   delete(key: string): Promise<void>;
 }
 
-class LocalStorage implements StorageDriver {
+export class LocalStorage implements StorageDriver {
   constructor(private readonly root: string) {}
 
   private path(key: string): string {
-    const full = resolve(this.root, key);
-    if (!full.startsWith(resolve(this.root))) throw new Error('path traversal blocked');
+    const root = resolve(this.root);
+    // `path.resolve(root, key)` already handles both "../" traversal and an
+    // absolute key overriding root entirely (Node resolves an absolute second
+    // argument on its own, discarding `root`) — either way the escape shows up
+    // as `full` landing outside `root`. Checked with a real separator boundary:
+    // `full.startsWith(root)` alone is wrong, since "/data/store-evil" also
+    // starts with the string "/data/store".
+    const full = resolve(root, key);
+    if (full !== root && !full.startsWith(root + sep)) throw new Error('path traversal blocked');
     return full;
   }
 
