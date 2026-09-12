@@ -20,7 +20,7 @@ Legend: ✅ done · 🟡 partial (usable, gaps noted) · ⚪ scaffolded (interfa
 | Project CRUD + RBAC + pause/resume | ✅ | CRUD, OWNER/EDITOR/VIEWER, membership API, pause/resume all done |
 | Connector SDK (`search/fetch/parse/normalize/healthCheck/rateLimitStatus/capabilities`) | ✅ | `packages/connectors/src/sdk` |
 | Connector registry + capability registry (§31) | ✅ | |
-| Connector health system (§32) | 🟡 | health probe + storage done; latency history chart pending |
+| Connector health system (§32) | ✅ | health probe + storage + per-connector latency-history sparkline/state-strip in the Connectors UI |
 | Job system (states, progress, per-step retry) (§37) | ✅ | in-process DB-backed runner: optimistic lock, stale-lock recovery, SSE progress, retry-failed-connectors-only. Redis/BullMQ = interface only |
 | Evidence model + immutable IDs + content hash (§9) | ✅ | `EVIDENCE-YYYY-NNNNNN` |
 | Audit log (§29) | ✅ | append-only, covers all mutations |

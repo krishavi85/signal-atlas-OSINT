@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 import { useAuth } from '@/lib/auth';
-import { Badge, EmptyState, ErrorState, PageHeader, Spinner, healthTone } from '@/components/ui';
-import { IconAlertTriangle, IconPlug } from '@/components/icons';
+import { Badge, EmptyState, ErrorState, LatencySparkline, PageHeader, Spinner, healthTone } from '@/components/ui';
+import { IconAlertTriangle, IconChevronDown, IconPlug } from '@/components/icons';
 
 interface ConnectorRow {
   connectorId: string;
@@ -18,6 +18,17 @@ interface ConnectorRow {
   hasStoredCredentials: boolean;
   rateLimit: { limit: number | null; remaining: number | null; retryAfterMs: number };
   health: { state: string; latencyMs: number | null; message: string; checkedAt: string; lastError: string | null } | null;
+}
+
+interface HealthHistoryRow {
+  state: string;
+  latencyMs: number | null;
+  checkedAt: string;
+  lastError: string | null;
+}
+
+interface ConnectorDetail {
+  healthHistory: HealthHistoryRow[];
 }
 
 const CAP_LABELS: Record<string, string> = {
@@ -39,6 +50,11 @@ export default function ConnectorsPage() {
   const { me } = useAuth();
   const { data, error, loading, reload } = useApi<ConnectorRow[]>('/connectors');
   const [busy, setBusy] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const { data: detail, loading: detailLoading } = useApi<ConnectorDetail>(
+    expanded ? `/connectors/${expanded}` : null,
+    [expanded],
+  );
 
   async function healthCheck(id: string) {
     setBusy(id);
@@ -93,6 +109,13 @@ export default function ConnectorsPage() {
                 >
                   {busy === c.connectorId ? 'Checking…' : 'Health check'}
                 </button>
+                <button
+                  className="btn-ghost flex items-center gap-1 py-1 text-xs"
+                  onClick={() => setExpanded(expanded === c.connectorId ? null : c.connectorId)}
+                >
+                  <IconChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded === c.connectorId ? 'rotate-180' : ''}`} />
+                  History
+                </button>
               </div>
 
               {c.health?.message && <p className="mt-1.5 text-xs text-slate-500">{c.health.message}</p>}
@@ -128,6 +151,36 @@ export default function ConnectorsPage() {
                     </li>
                   ))}
                 </ul>
+              )}
+
+              {expanded === c.connectorId && (
+                <div className="mt-3 border-t border-ink-800 pt-3">
+                  {detailLoading && <Spinner label="Loading history…" />}
+                  {!detailLoading && detail && detail.healthHistory.length === 0 && (
+                    <p className="text-xs text-slate-600">No health checks recorded yet.</p>
+                  )}
+                  {!detailLoading && detail && detail.healthHistory.length > 0 && (
+                    <>
+                      <p className="eyebrow mb-1.5">
+                        Latency, last {detail.healthHistory.length} checks (oldest → newest)
+                      </p>
+                      <LatencySparkline points={[...detail.healthHistory].reverse()} />
+                      {detail.healthHistory.some((h) => h.lastError) && (
+                        <ul className="mt-2.5 space-y-1 text-xs text-slate-500">
+                          {detail.healthHistory
+                            .filter((h) => h.lastError)
+                            .slice(0, 5)
+                            .map((h, i) => (
+                              <li key={i} className="truncate">
+                                <span className="text-slate-600">{new Date(h.checkedAt).toLocaleString()}</span>{' '}
+                                <span className="text-red-400/90">{h.lastError}</span>
+                              </li>
+                            ))}
+                        </ul>
+                      )}
+                    </>
+                  )}
+                </div>
               )}
             </div>
           ))}

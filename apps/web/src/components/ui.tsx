@@ -128,6 +128,63 @@ export function Stat({
   );
 }
 
+const STATE_DOT_COLOR: Record<string, string> = {
+  ONLINE: '#34d399',
+  DEGRADED: '#fbbf24',
+  RATE_LIMITED: '#fbbf24',
+  OFFLINE: '#f87171',
+  MISCONFIGURED: '#f87171',
+  AUTH_REQUIRED: '#f87171',
+  NOT_CONFIGURED: '#64748b',
+};
+
+/** Oldest-to-newest latency sparkline + a state-colored dot strip beneath it. Renders nothing meaningful for <2 points. */
+export function LatencySparkline({
+  points,
+  width = 320,
+  height = 40,
+}: {
+  points: Array<{ latencyMs: number | null; state: string; checkedAt: string }>;
+  width?: number;
+  height?: number;
+}) {
+  if (points.length === 0) return null;
+  const withLatency = points.filter((p) => p.latencyMs != null) as Array<{ latencyMs: number; state: string; checkedAt: string }>;
+  const max = Math.max(1, ...withLatency.map((p) => p.latencyMs));
+  const n = points.length;
+  const step = n > 1 ? width / (n - 1) : 0;
+  const y = (v: number) => height - (v / max) * (height - 4) - 2;
+
+  const linePoints = withLatency
+    .map((p) => {
+      const i = points.indexOf(p);
+      return `${i * step},${y(p.latencyMs)}`;
+    })
+    .join(' ');
+
+  return (
+    <div>
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height }}>
+        {withLatency.length >= 2 && <polyline points={linePoints} fill="none" stroke="#4f9cf9" strokeWidth={1.5} />}
+        {withLatency.map((p, idx) => {
+          const i = points.indexOf(p);
+          return <circle key={idx} cx={i * step} cy={y(p.latencyMs)} r={1.5} fill="#4f9cf9" />;
+        })}
+      </svg>
+      <div className="mt-1 flex gap-[1px]">
+        {points.map((p, i) => (
+          <span
+            key={i}
+            title={`${p.state} · ${new Date(p.checkedAt).toLocaleString()}${p.latencyMs != null ? ` · ${p.latencyMs}ms` : ''}`}
+            className="h-1.5 flex-1 rounded-[1px]"
+            style={{ background: STATE_DOT_COLOR[p.state] ?? '#334155' }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function PageHeader({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
   return (
     <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
