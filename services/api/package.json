@@ -6,7 +6,7 @@
   "main": "./dist/index.js",
   "scripts": {
     "build": "prisma generate && tsc -b",
-    "typecheck": "tsc -b --noEmit",
+    "typecheck": "tsc -b",
     "dev": "node --import tsx --watch src/index.ts",
     "start": "node dist/index.js",
     "db:generate": "prisma generate",
