@@ -47,6 +47,7 @@ const EnvSchema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   AI_EMBEDDINGS_PROVIDER: z.enum(['none', 'ollama', 'openai']).default('none'),
   AI_EMBEDDINGS_MODEL: z.string().optional(),
+  GOOGLE_VISION_API_KEY: z.string().optional(),
 
   BUDGET_MONTHLY_USD: z.coerce.number().nonnegative().default(0),
   BUDGET_LLM_TOKENS_DAY: z.coerce.number().nonnegative().default(0),

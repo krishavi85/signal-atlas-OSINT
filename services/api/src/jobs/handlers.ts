@@ -50,7 +50,11 @@ export function registerAllJobHandlers(): void {
     const projectId = String(ctx.payload.projectId ?? '');
     if (!projectId) throw new Error('MEDIA_PROCESS payload missing projectId');
     await collectMediaForProject(projectId);
-    const result = await processProjectMedia(projectId, { vision: Boolean(ctx.payload.vision), transcribe: Boolean(ctx.payload.transcribe) });
+    const result = await processProjectMedia(projectId, {
+      vision: Boolean(ctx.payload.vision),
+      transcribe: Boolean(ctx.payload.transcribe),
+      reverseImageSearch: Boolean(ctx.payload.reverseImageSearch),
+    });
     await ctx.reportProgress(result as unknown as Record<string, unknown>);
     return { status: result.errors > 0 && result.processed === 0 ? 'PARTIAL' : 'COMPLETED', result };
   });

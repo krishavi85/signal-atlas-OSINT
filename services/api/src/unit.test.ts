@@ -20,6 +20,7 @@ const { LocalStorage } = await import('./lib/storage.js');
 const { buildJobDiagnostics } = await import('./modules/jobs.routes.js');
 const { decideBudget, nextUtcMidnight } = await import('./lib/budget.js');
 const { ffmpegAvailable } = await import('./lib/ffmpeg.js');
+const { parseWebDetection } = await import('./ai/reverseImageSearch.js');
 
 test('crypto: AES-256-GCM round trip + tamper detection', () => {
   const enc = encryptSecret('super-secret-token');
@@ -296,4 +297,32 @@ test('decideBudget: allows up to the cap, refuses past it, resets at UTC midnigh
 test('ffmpegAvailable: never throws (missing binary reports false, not ENOENT)', async () => {
   const available = await ffmpegAvailable();
   assert.equal(typeof available, 'boolean');
+});
+
+test('parseWebDetection: dedupes by URL, prefers page matches over bare image matches, extracts domains', () => {
+  const result = parseWebDetection({
+    pagesWithMatchingImages: [{ url: 'https://example.com/article', pageTitle: 'An Article' }],
+    fullMatchingImages: [{ url: 'https://cdn.example.com/img.jpg' }, { url: 'https://example.com/article' }],
+    partialMatchingImages: [{ url: 'https://other.test/crop.png' }],
+    visuallySimilarImages: [{ url: 'https://www.similar.test/x.jpg' }],
+    bestGuessLabels: [{ label: 'stock photo' }, {}],
+  });
+
+  assert.equal(result.matches.length, 4, 'the duplicate URL across pagesWithMatchingImages and fullMatchingImages must collapse to one');
+  const article = result.matches.find((m) => m.url === 'https://example.com/article');
+  assert.equal(article?.matchType, 'PAGE', 'a page-listing match must win over a same-URL full-image match');
+  assert.equal(article?.pageTitle, 'An Article');
+  assert.equal(article?.domain, 'example.com');
+
+  const similar = result.matches.find((m) => m.url.includes('similar.test'));
+  assert.equal(similar?.domain, 'similar.test', 'leading www. is stripped from the domain');
+  assert.equal(similar?.matchType, 'SIMILAR');
+
+  assert.deepEqual(result.bestGuessLabels, ['stock photo'], 'labels missing a .label field are dropped, not left as undefined');
+});
+
+test('parseWebDetection: handles a completely empty response without throwing', () => {
+  const result = parseWebDetection({});
+  assert.deepEqual(result.matches, []);
+  assert.deepEqual(result.bestGuessLabels, []);
 });

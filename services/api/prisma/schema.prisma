@@ -602,6 +602,7 @@ model MediaAsset {
   ocrText     String?
   visionText  String?   // description / visible-text extracted by a vision model
   transcript  String?
+  reverseImageJson Json? // { matches: [{url, domain, pageTitle, matchType}], bestGuessLabels: string[] } — web-content matches, never identity
   // perceptual-duplicate clustering (§18, §19)
   clusterId     String?
   duplicateOfId String?

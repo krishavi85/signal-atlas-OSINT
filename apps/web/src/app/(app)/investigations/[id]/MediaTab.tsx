@@ -22,6 +22,7 @@ interface MediaRow {
   visionText: string | null;
   transcript: string | null;
   durationSec: number | null;
+  reverseImageJson: { matches: Array<{ url: string; domain: string | null; pageTitle: string | null; matchType: string }>; bestGuessLabels: string[] } | null;
   duplicateOfId: string | null;
   clusterId: string | null;
   note: string | null;
@@ -35,6 +36,7 @@ interface MediaStatus {
   byStatus: Record<string, number>;
   vision: { available: boolean; reason?: string };
   transcription: { available: boolean; reason?: string };
+  reverseImage: { available: boolean; reason?: string };
   capabilities: Record<string, unknown>;
 }
 
@@ -47,12 +49,16 @@ export function MediaTab({ projectId, canEdit }: { projectId: string; canEdit: b
   const [processing, setProcessing] = useState(false);
   const [useVision, setUseVision] = useState(false);
   const [useTranscribe, setUseTranscribe] = useState(false);
+  const [useReverseImage, setUseReverseImage] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function process() {
     setProcessing(true);
     try {
-      await api(`/projects/${projectId}/media/process`, { method: 'POST', body: JSON.stringify({ vision: useVision, transcribe: useTranscribe }) });
+      await api(`/projects/${projectId}/media/process`, {
+        method: 'POST',
+        body: JSON.stringify({ vision: useVision, transcribe: useTranscribe, reverseImageSearch: useReverseImage }),
+      });
       setTimeout(() => { void reload(); void status.reload(); }, 3000);
       setTimeout(() => { void reload(); void status.reload(); }, 9000);
     } finally {
@@ -84,6 +90,9 @@ export function MediaTab({ projectId, canEdit }: { projectId: string; canEdit: b
           <Badge tone={status.data?.transcription.available ? 'green' : 'neutral'}>
             video/audio transcription {status.data?.transcription.available ? '(ffmpeg + Whisper)' : '— unavailable'}
           </Badge>
+          <Badge tone={status.data?.reverseImage.available ? 'green' : 'neutral'}>
+            reverse image search {status.data?.reverseImage.available ? '(Google Vision)' : '— unavailable'}
+          </Badge>
           <Badge tone="red">no facial identification (by policy)</Badge>
         </div>
         {status.data && !status.data.vision.available && status.data.vision.reason && (
@@ -91,6 +100,15 @@ export function MediaTab({ projectId, canEdit }: { projectId: string; canEdit: b
         )}
         {status.data && !status.data.transcription.available && status.data.transcription.reason && (
           <p className="mt-1 text-slate-500">{status.data.transcription.reason}</p>
+        )}
+        {status.data && !status.data.reverseImage.available && status.data.reverseImage.reason && (
+          <p className="mt-1 text-slate-500">{status.data.reverseImage.reason}</p>
+        )}
+        {status.data?.reverseImage.available && (
+          <p className="mt-1 text-slate-600">
+            Reverse image search matches image content against Google&apos;s web index (stock-photo reuse, reposted
+            images) — it does not detect faces or identify people (§19/§30).
+          </p>
         )}
         {gpsCount > 0 && (
           <p className="mt-1 text-amber-400">⚠️ {gpsCount} image(s) contain embedded GPS coordinates — treat as location data.</p>
@@ -112,6 +130,12 @@ export function MediaTab({ projectId, canEdit }: { projectId: string; canEdit: b
             <label className="flex items-center gap-1.5 text-xs text-slate-400">
               <input type="checkbox" checked={useTranscribe} onChange={(e) => setUseTranscribe(e.target.checked)} />
               transcribe video/audio (Whisper)
+            </label>
+          )}
+          {status.data?.reverseImage.available && (
+            <label className="flex items-center gap-1.5 text-xs text-slate-400">
+              <input type="checkbox" checked={useReverseImage} onChange={(e) => setUseReverseImage(e.target.checked)} />
+              reverse image search (Google Vision)
             </label>
           )}
           <span className="text-xs text-slate-600">|</span>
@@ -166,6 +190,9 @@ export function MediaTab({ projectId, canEdit }: { projectId: string; canEdit: b
                     {m.status === 'SKIPPED' && <Badge tone="neutral">{m.kind}</Badge>}
                     {m.visionText && <Badge tone="violet">OCR</Badge>}
                     {m.transcript && <Badge tone="violet">transcript</Badge>}
+                    {m.reverseImageJson && m.reverseImageJson.matches.length > 0 && (
+                      <Badge tone="violet">{m.reverseImageJson.matches.length} web match{m.reverseImageJson.matches.length === 1 ? '' : 'es'}</Badge>
+                    )}
                   </div>
                 </button>
               ))}
@@ -282,6 +309,34 @@ function MediaInspector({ mediaId, canEdit, onDeleted }: { mediaId: string; canE
             Transcript (Whisper){data.durationSec ? ` — ${Math.round(data.durationSec)}s` : ''}
           </p>
           <pre className="whitespace-pre-wrap rounded bg-ink-950 p-2 font-sans text-slate-400">{data.transcript}</pre>
+        </div>
+      )}
+
+      {data.reverseImageJson && (
+        <div className="text-xs">
+          <p className="mb-1 font-semibold text-slate-400">
+            Reverse image search — {data.reverseImageJson.matches.length} web match{data.reverseImageJson.matches.length === 1 ? '' : 'es'} (Google Vision)
+          </p>
+          {data.reverseImageJson.bestGuessLabels.length > 0 && (
+            <p className="mb-1.5 text-slate-500">Best-guess content: {data.reverseImageJson.bestGuessLabels.join(', ')}</p>
+          )}
+          {data.reverseImageJson.matches.length === 0 ? (
+            <p className="text-slate-600">No matching or visually similar images found elsewhere on the web.</p>
+          ) : (
+            <ul className="max-h-48 space-y-1 overflow-y-auto">
+              {data.reverseImageJson.matches.map((m, i) => (
+                <li key={i} className="flex items-baseline gap-1.5 truncate">
+                  <Badge tone="neutral">{m.matchType}</Badge>
+                  <a href={m.url} target="_blank" rel="noreferrer" className="truncate text-accent hover:underline" title={m.url}>
+                    {m.pageTitle ?? m.domain ?? m.url}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-1.5 text-[10px] text-slate-600">
+            Content/perceptual matching against Google&apos;s image index — never face detection or identity (§19/§30).
+          </p>
         </div>
       )}
 

@@ -28,6 +28,7 @@ import { dashboardRoutes } from './modules/dashboard.routes.js';
 import { sseRoutes } from './realtime/sse.js';
 import { registry } from './connectors/runtime.js';
 import { transcriptionCapable } from './orchestrator/MediaEngine.js';
+import { reverseImageSearchStatus } from './ai/reverseImageSearch.js';
 
 export async function buildServer(): Promise<FastifyInstance> {
   const env = loadEnv();
@@ -63,13 +64,14 @@ export async function buildServer(): Promise<FastifyInstance> {
   // Feature/capability manifest so the frontend can render honest states (§31, §51)
   const getManifest = async () => {
     const transcription = await transcriptionCapable();
+    const reverseImage = reverseImageSearchStatus();
     return {
       connectors: registry.ids(),
       ai: { provider: env.AI_PROVIDER, embeddings: env.AI_EMBEDDINGS_PROVIDER },
       jobDriver: env.JOB_DRIVER,
       notImplemented: [
         ...(transcription.available ? [] : [`Video / audio transcription (${transcription.reason})`]),
-        'Reverse image search (needs a provider API key)',
+        ...(reverseImage.available ? [] : [`Reverse image search (${reverseImage.reason})`]),
         'Distributed tracing (needs an OpenTelemetry collector)',
       ],
       implemented: [
@@ -90,6 +92,7 @@ export async function buildServer(): Promise<FastifyInstance> {
       'Explainable confidence ("WHY?") with exposed factors',
       'God Mode — one TARGET/OBJECTIVE/DEPTH run composing every engine (search, evidence, entities, resolution, relationships, claims, corroboration, contradictions, timeline, report, monitoring recommendations) into the full §56 15-section result',
         ...(transcription.available ? ['Video/audio transcription via ffmpeg + Whisper (when OPENAI_API_KEY is configured)'] : []),
+        ...(reverseImage.available ? ['Reverse image search via Google Vision Web Detection (when GOOGLE_VISION_API_KEY is configured) — content matching only, never identity'] : []),
         'Load/performance test harness (npm run load-test -w @osint/api)',
       ],
     };
