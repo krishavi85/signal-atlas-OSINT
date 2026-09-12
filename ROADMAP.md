@@ -83,7 +83,7 @@ Legend: ✅ done · 🟡 partial (usable, gaps noted) · ⚪ scaffolded (interfa
 | Explainability "WHY?" (§47) | ✅ claim WHY panel (Phase 3) + report ungrounded-statement callouts + `citedEvidenceIds` on every AI output |
 | PDF / DOCX report export | ✅ Phase 8 |
 
-## Phase 6 — Visual intelligence  ✅ (except video/audio transcription)
+## Phase 6 — Visual intelligence  ✅
 
 | Item | State |
 |---|---|
@@ -92,7 +92,7 @@ Legend: ✅ done · 🟡 partial (usable, gaps noted) · ⚪ scaffolded (interfa
 | Evidence viewer / entity explorer / source explorer | ✅ |
 | Media intelligence (§19) — image format + dimensions, EXIF incl. GPS, perceptual-hash (dHash) duplicate detection + clustering | ✅ `MediaEngine`, auto-collected from evidence media refs + direct upload, `MEDIA_PROCESS` job, Media tab |
 | Media OCR / description | ✅ via a configured **multimodal** model (claude-*, gpt-4o, or an Ollama vision model); vision prompt forbids identifying people; honest unavailable otherwise |
-| Video / audio transcription | ⚪ not bundled — needs ffmpeg + a speech-to-text model; reported honestly as SKIPPED |
+| Video / audio transcription | ✅ ffmpeg (audio extraction/normalization to 16kHz mono mp3) + OpenAI Whisper (`OPENAI_API_KEY`, independent of `AI_PROVIDER`); opt-in `transcribe:true` on media processing; honestly SKIPPED naming the exact missing piece (ffmpeg not on PATH, and/or no key) when unavailable |
 | Reverse image search | ⚪ needs a provider API key (TinEye / Vision) |
 | **Facial identification / biometric matching** | ❌ **never built, by policy (§19, §30)** — no face code anywhere |
 
@@ -172,3 +172,4 @@ API that it created a real, enabled daily `MonitoringJob`.
 | No AI provider keys / local model | Heuristic extraction only; no synthesis/semantic | Run Ollama locally or set `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` |
 | No search API keys | Only RSS/Wikipedia/HN/generic-fetch active | Set any of `GOOGLE_CSE_*`, `BING_SEARCH_API_KEY`, `BRAVE_SEARCH_API_KEY`, or `SEARXNG_BASE_URL` |
 | Meta/Instagram require app review | Social connectors inert | Complete Meta app review, obtain page/IG tokens |
+| No ffmpeg installed | Video/audio transcription unavailable | Install ffmpeg and put it on `PATH` |

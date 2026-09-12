@@ -8,7 +8,7 @@ import { audit } from './audit.js';
 import { enqueueJob } from '../jobs/runner.js';
 import { storage } from '../lib/storage.js';
 import { IMAGE_CONTENT_TYPES } from '../lib/mediaExtract.js';
-import { visionCapable } from '../orchestrator/MediaEngine.js';
+import { transcriptionCapable, visionCapable } from '../orchestrator/MediaEngine.js';
 
 export async function mediaRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', app.authenticate);
@@ -20,16 +20,18 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
       prisma.mediaAsset.count({ where: { projectId: id } }),
       prisma.mediaAsset.groupBy({ by: ['status'], where: { projectId: id }, _count: true }),
     ]);
+    const transcription = await transcriptionCapable();
     return {
       total,
       byStatus: Object.fromEntries(byStatus.map((s) => [s.status, s._count])),
       vision: visionCapable(),
+      transcription,
       capabilities: {
         imageMetadata: true,
         exifGps: true,
         perceptualDuplicateDetection: true,
         ocr: 'vision-model', // requires a configured multimodal model
-        videoAudioTranscription: false, // not bundled — needs ffmpeg + speech model
+        videoAudioTranscription: transcription.available ? true : transcription.reason,
         objectLogoRecognition: 'vision-model',
         reverseImageSearch: false, // no provider configured
         facialIdentification: 'never', // §19/§30 — not built, by policy
@@ -117,11 +119,15 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
   app.post('/projects/:id/media/process', async (req) => {
     const { id } = z.object({ id: z.string() }).parse(req.params);
     await assertProjectAccess(req, id, 'EDITOR');
-    const { vision } = z.object({ vision: z.boolean().default(false) }).parse(req.body ?? {});
+    const { vision, transcribe } = z.object({ vision: z.boolean().default(false), transcribe: z.boolean().default(false) }).parse(req.body ?? {});
     if (vision && !visionCapable().available) {
       throw badRequest(`Vision OCR/description unavailable: ${visionCapable().reason}`);
     }
-    const jobId = await enqueueJob({ type: 'MEDIA_PROCESS', projectId: id, payload: { projectId: id, vision } });
+    if (transcribe) {
+      const cap = await transcriptionCapable();
+      if (!cap.available) throw badRequest(`Transcription unavailable: ${cap.reason}`);
+    }
+    const jobId = await enqueueJob({ type: 'MEDIA_PROCESS', projectId: id, payload: { projectId: id, vision, transcribe } });
     return { jobId };
   });
 

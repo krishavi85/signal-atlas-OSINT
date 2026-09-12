@@ -6,6 +6,8 @@ import { audit } from '../modules/audit.js';
 import { safeFetch } from '../lib/safeFetch.js';
 import { storage } from '../lib/storage.js';
 import { chat, chatStatus } from '../ai/chat.js';
+import { transcribeAudio, transcriptionStatus } from '../ai/transcribe.js';
+import { extractAudioTrack, ffmpegAvailable } from '../lib/ffmpeg.js';
 import {
   extractImageMeta,
   hammingHex,
@@ -19,15 +21,27 @@ import {
  *
  * Does: image format/dimensions, EXIF incl. GPS (surfaced, not hidden),
  * perceptual-hash duplicate-image detection, and — only when a vision model is
- * configured — text/description extraction.
+ * configured — text/description extraction. Video/audio transcription runs
+ * only when both ffmpeg (audio extraction/normalization) and OPENAI_API_KEY
+ * (Whisper) are available; otherwise it's reported honestly as SKIPPED with
+ * the exact missing piece, never faked (§51).
  *
  * Does NOT: face detection, facial similarity, or any biometric identification
- * of individuals (§19, §30). Video/audio transcription is not bundled (needs
- * ffmpeg + a speech model) and is reported honestly as SKIPPED.
+ * of individuals (§19, §30).
  */
 
 const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
+const MAX_AV_BYTES = 50 * 1024 * 1024;
 const DUP_DISTANCE = 6;
+
+export async function transcriptionCapable(): Promise<{ available: boolean; reason?: string }> {
+  const stt = transcriptionStatus();
+  if (!stt.available) return { available: false, reason: `${stt.reason} ${stt.setup ?? ''}`.trim() };
+  if (!(await ffmpegAvailable())) {
+    return { available: false, reason: 'ffmpeg not found on PATH (required to extract/normalize audio before transcription).' };
+  }
+  return { available: true };
+}
 
 export function visionCapable(): { available: boolean; reason?: string } {
   const status = chatStatus();
@@ -79,18 +93,21 @@ export interface MediaProcessResult {
   skipped: number;
   errors: number;
   visionUsed: boolean;
+  transcribed: number;
 }
 
 export async function processProjectMedia(
   projectId: string,
-  opts: { vision?: boolean; limit?: number } = {},
+  opts: { vision?: boolean; transcribe?: boolean; limit?: number } = {},
 ): Promise<MediaProcessResult> {
   const pending = await prisma.mediaAsset.findMany({
     where: { projectId, status: 'PENDING' },
     take: opts.limit ?? 60,
   });
-  const result: MediaProcessResult = { processed: 0, duplicates: 0, skipped: 0, errors: 0, visionUsed: false };
+  const result: MediaProcessResult = { processed: 0, duplicates: 0, skipped: 0, errors: 0, visionUsed: false, transcribed: 0 };
   const wantVision = Boolean(opts.vision) && visionCapable().available;
+  const wantTranscribe = Boolean(opts.transcribe);
+  const transcribeCap = wantTranscribe ? await transcriptionCapable() : { available: false };
 
   // known hashes in this project for dup detection
   const known = await prisma.mediaAsset.findMany({
@@ -99,17 +116,69 @@ export async function processProjectMedia(
   });
 
   for (const asset of pending) {
+    if (asset.kind === 'VIDEO' || asset.kind === 'AUDIO') {
+      if (!wantTranscribe || !transcribeCap.available) {
+        await prisma.mediaAsset.update({
+          where: { id: asset.id },
+          data: {
+            status: 'SKIPPED',
+            note: wantTranscribe
+              ? `Transcription unavailable: ${transcribeCap.reason}`
+              : 'Video/audio transcription not requested (pass transcribe:true). Metadata only.',
+            processedAt: new Date(),
+          },
+        });
+        result.skipped++;
+        continue;
+      }
+      try {
+        let buf: Buffer;
+        let ext = 'bin';
+        if (asset.storageKey) {
+          buf = await storage().get(asset.storageKey);
+          ext = asset.format ?? ext;
+        } else if (asset.sourceUrl) {
+          const res = await safeFetch(asset.sourceUrl, { timeoutMs: 30_000, maxBytes: MAX_AV_BYTES });
+          buf = Buffer.from(await res.arrayBuffer());
+          if (buf.length > MAX_AV_BYTES) throw new Error(`Media too large (${buf.length} bytes)`);
+          ext = asset.sourceUrl.split('.').pop()?.split('?')[0] ?? ext;
+          const stored = await storage().put(`media/${projectId}`, buf, ext.slice(0, 5));
+          asset.storageKey = stored.key;
+        } else {
+          throw new Error('No source URL or stored file');
+        }
+
+        const audioTrack = await extractAudioTrack(buf, ext);
+        const { text, durationSec } = await transcribeAudio(audioTrack, `audio.mp3`);
+
+        await prisma.mediaAsset.update({
+          where: { id: asset.id },
+          data: {
+            storageKey: asset.storageKey,
+            transcript: text || null,
+            durationSec: durationSec ?? asset.durationSec,
+            status: 'PROCESSED',
+            error: null,
+            note: text ? null : 'Transcription produced no text (silent or unrecognized audio).',
+            processedAt: new Date(),
+          },
+        });
+        result.processed++;
+        result.transcribed++;
+      } catch (err) {
+        await prisma.mediaAsset.update({
+          where: { id: asset.id },
+          data: { status: 'ERROR', error: (err instanceof Error ? err.message : String(err)).slice(0, 500), processedAt: new Date() },
+        });
+        result.errors++;
+      }
+      continue;
+    }
+
     if (asset.kind !== 'IMAGE') {
       await prisma.mediaAsset.update({
         where: { id: asset.id },
-        data: {
-          status: 'SKIPPED',
-          note:
-            asset.kind === 'VIDEO' || asset.kind === 'AUDIO'
-              ? 'Video/audio transcription is not bundled (requires ffmpeg + a speech-to-text model). Metadata only.'
-              : 'Non-image media — no processor.',
-          processedAt: new Date(),
-        },
+        data: { status: 'SKIPPED', note: 'Non-image, non-audio/video media — no processor.', processedAt: new Date() },
       });
       result.skipped++;
       continue;
@@ -218,7 +287,7 @@ export async function processProjectMedia(
     action: 'AI_ANALYSIS_EXECUTED',
     targetType: 'project',
     targetId: projectId,
-    summary: `Media processing: ${result.processed} images (${result.duplicates} perceptual duplicates), ${result.skipped} skipped, ${result.errors} errors${result.visionUsed ? ', vision model used for OCR/description' : ''}`,
+    summary: `Media processing: ${result.processed} processed (${result.duplicates} perceptual duplicates, ${result.transcribed} transcribed), ${result.skipped} skipped, ${result.errors} errors${result.visionUsed ? ', vision model used for OCR/description' : ''}`,
   });
   return result;
 }

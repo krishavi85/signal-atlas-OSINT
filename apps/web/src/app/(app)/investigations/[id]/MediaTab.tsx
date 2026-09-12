@@ -20,6 +20,8 @@ interface MediaRow {
   capturedAt: string | null;
   exifJson: Record<string, unknown> | null;
   visionText: string | null;
+  transcript: string | null;
+  durationSec: number | null;
   duplicateOfId: string | null;
   clusterId: string | null;
   note: string | null;
@@ -32,6 +34,7 @@ interface MediaStatus {
   total: number;
   byStatus: Record<string, number>;
   vision: { available: boolean; reason?: string };
+  transcription: { available: boolean; reason?: string };
   capabilities: Record<string, unknown>;
 }
 
@@ -43,12 +46,13 @@ export function MediaTab({ projectId, canEdit }: { projectId: string; canEdit: b
   const [selected, setSelected] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [useVision, setUseVision] = useState(false);
+  const [useTranscribe, setUseTranscribe] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function process() {
     setProcessing(true);
     try {
-      await api(`/projects/${projectId}/media/process`, { method: 'POST', body: JSON.stringify({ vision: useVision }) });
+      await api(`/projects/${projectId}/media/process`, { method: 'POST', body: JSON.stringify({ vision: useVision, transcribe: useTranscribe }) });
       setTimeout(() => { void reload(); void status.reload(); }, 3000);
       setTimeout(() => { void reload(); void status.reload(); }, 9000);
     } finally {
@@ -77,11 +81,16 @@ export function MediaTab({ projectId, canEdit }: { projectId: string; canEdit: b
           <Badge tone={status.data?.vision.available ? 'green' : 'neutral'}>
             OCR / description {status.data?.vision.available ? '(vision model)' : '— needs a multimodal model'}
           </Badge>
-          <Badge tone="neutral">video/audio transcription — not bundled</Badge>
+          <Badge tone={status.data?.transcription.available ? 'green' : 'neutral'}>
+            video/audio transcription {status.data?.transcription.available ? '(ffmpeg + Whisper)' : '— unavailable'}
+          </Badge>
           <Badge tone="red">no facial identification (by policy)</Badge>
         </div>
         {status.data && !status.data.vision.available && status.data.vision.reason && (
           <p className="mt-1 text-slate-500">{status.data.vision.reason}</p>
+        )}
+        {status.data && !status.data.transcription.available && status.data.transcription.reason && (
+          <p className="mt-1 text-slate-500">{status.data.transcription.reason}</p>
         )}
         {gpsCount > 0 && (
           <p className="mt-1 text-amber-400">⚠️ {gpsCount} image(s) contain embedded GPS coordinates — treat as location data.</p>
@@ -97,6 +106,12 @@ export function MediaTab({ projectId, canEdit }: { projectId: string; canEdit: b
             <label className="flex items-center gap-1.5 text-xs text-slate-400">
               <input type="checkbox" checked={useVision} onChange={(e) => setUseVision(e.target.checked)} />
               run vision OCR / description (uses the AI provider)
+            </label>
+          )}
+          {status.data?.transcription.available && (
+            <label className="flex items-center gap-1.5 text-xs text-slate-400">
+              <input type="checkbox" checked={useTranscribe} onChange={(e) => setUseTranscribe(e.target.checked)} />
+              transcribe video/audio (Whisper)
             </label>
           )}
           <span className="text-xs text-slate-600">|</span>
@@ -143,13 +158,14 @@ export function MediaTab({ projectId, canEdit }: { projectId: string; canEdit: b
                   onClick={() => setSelected(m.id)}
                   className={`group relative aspect-square overflow-hidden rounded border ${selected === m.id ? 'border-accent' : 'border-ink-700'}`}
                 >
-                  <MediaThumb media={m} />
+                  {m.kind === 'IMAGE' ? <MediaThumb media={m} /> : <MediaKindPlaceholder kind={m.kind} />}
                   <div className="absolute inset-x-0 bottom-0 flex flex-wrap gap-0.5 bg-black/60 p-0.5">
                     {m.duplicateOfId && <Badge tone="amber">dup</Badge>}
                     {m.gpsLat != null && <Badge tone="red">GPS</Badge>}
                     {m.status === 'ERROR' && <Badge tone="red">err</Badge>}
                     {m.status === 'SKIPPED' && <Badge tone="neutral">{m.kind}</Badge>}
                     {m.visionText && <Badge tone="violet">OCR</Badge>}
+                    {m.transcript && <Badge tone="violet">transcript</Badge>}
                   </div>
                 </button>
               ))}
@@ -196,6 +212,15 @@ function MediaThumb({ media }: { media: { id: string; sourceUrl: string | null }
   return <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" />;
 }
 
+function MediaKindPlaceholder({ kind }: { kind: string }) {
+  const label = kind === 'VIDEO' ? '▶ video' : kind === 'AUDIO' ? '♪ audio' : kind;
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-ink-950 text-[11px] text-slate-500">
+      {label}
+    </div>
+  );
+}
+
 function MediaInspector({ mediaId, canEdit, onDeleted }: { mediaId: string; canEdit: boolean; onDeleted: () => void }) {
   const { data, loading, error } = useApi<
     MediaRow & { evidence: { id: string; title: string | null; url: string | null } | null; duplicates: Array<{ id: string; sourceUrl: string | null }> }
@@ -206,7 +231,7 @@ function MediaInspector({ mediaId, canEdit, onDeleted }: { mediaId: string; canE
 
   return (
     <div className="card space-y-3 p-4 text-sm">
-      <MediaThumb media={data} />
+      {data.kind === 'IMAGE' ? <MediaThumb media={data} /> : <MediaKindPlaceholder kind={data.kind} />}
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
         <dt className="text-slate-600">Status</dt><dd className="text-slate-300">{data.status}{data.error ? ` — ${data.error}` : ''}</dd>
         <dt className="text-slate-600">Format</dt><dd className="text-slate-300">{data.format ?? '—'} {data.width && data.height ? `· ${data.width}×${data.height}` : ''} {data.byteSize ? `· ${(data.byteSize / 1024).toFixed(0)} KB` : ''}</dd>
@@ -248,6 +273,15 @@ function MediaInspector({ mediaId, canEdit, onDeleted }: { mediaId: string; canE
           <p className="mb-1 font-semibold text-slate-400">Vision model — visible text &amp; description</p>
           <pre className="whitespace-pre-wrap rounded bg-ink-950 p-2 font-sans text-slate-400">{data.visionText}</pre>
           <p className="mt-1 text-[10px] text-slate-600">Produced by a multimodal model; person identity is never inferred (§19/§30).</p>
+        </div>
+      )}
+
+      {data.transcript && (
+        <div className="text-xs">
+          <p className="mb-1 font-semibold text-slate-400">
+            Transcript (Whisper){data.durationSec ? ` — ${Math.round(data.durationSec)}s` : ''}
+          </p>
+          <pre className="whitespace-pre-wrap rounded bg-ink-950 p-2 font-sans text-slate-400">{data.transcript}</pre>
         </div>
       )}
 

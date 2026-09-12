@@ -27,6 +27,7 @@ import { godModeRoutes } from './modules/god-mode.routes.js';
 import { dashboardRoutes } from './modules/dashboard.routes.js';
 import { sseRoutes } from './realtime/sse.js';
 import { registry } from './connectors/runtime.js';
+import { transcriptionCapable } from './orchestrator/MediaEngine.js';
 
 export async function buildServer(): Promise<FastifyInstance> {
   const env = loadEnv();
@@ -60,18 +61,20 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(metricsRoutes);
 
   // Feature/capability manifest so the frontend can render honest states (§31, §51)
-  const getManifest = async () => ({
-    connectors: registry.ids(),
-    ai: { provider: env.AI_PROVIDER, embeddings: env.AI_EMBEDDINGS_PROVIDER },
-    jobDriver: env.JOB_DRIVER,
-    notImplemented: [
-      'Video / audio transcription (needs ffmpeg + a speech model — not bundled)',
-      'Reverse image search (needs a provider API key)',
-      'Distributed tracing (needs an OpenTelemetry collector)',
-      'Load/performance test harness',
-    ],
-    implemented: [
-      'Multi-source search orchestration + query planning + coverage reporting',
+  const getManifest = async () => {
+    const transcription = await transcriptionCapable();
+    return {
+      connectors: registry.ids(),
+      ai: { provider: env.AI_PROVIDER, embeddings: env.AI_EMBEDDINGS_PROVIDER },
+      jobDriver: env.JOB_DRIVER,
+      notImplemented: [
+        ...(transcription.available ? [] : [`Video / audio transcription (${transcription.reason})`]),
+        'Reverse image search (needs a provider API key)',
+        'Distributed tracing (needs an OpenTelemetry collector)',
+        'Load/performance test harness',
+      ],
+      implemented: [
+        'Multi-source search orchestration + query planning + coverage reporting',
       'Evidence model with immutable IDs, content hashing, dedup + syndication clustering',
       'Deterministic entity extraction + scored/reversible entity resolution',
       'Evidence-traceable relationship graph',
@@ -87,8 +90,10 @@ export async function buildServer(): Promise<FastifyInstance> {
       'AI research analyst — evidence-grounded Q&A, AI query expansion, report generation (when an AI provider is configured); anti-hallucination citation validation',
       'Explainable confidence ("WHY?") with exposed factors',
       'God Mode — one TARGET/OBJECTIVE/DEPTH run composing every engine (search, evidence, entities, resolution, relationships, claims, corroboration, contradictions, timeline, report, monitoring recommendations) into the full §56 15-section result',
-    ],
-  });
+        ...(transcription.available ? ['Video/audio transcription via ffmpeg + Whisper (when OPENAI_API_KEY is configured)'] : []),
+      ],
+    };
+  };
   const getReadyz = async (reply: import('fastify').FastifyReply) => {
     try {
       await prisma.$queryRaw`SELECT 1`;

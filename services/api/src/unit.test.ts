@@ -19,6 +19,7 @@ const { parseMarkdownBlocks } = await import('./lib/markdownBlocks.js');
 const { LocalStorage } = await import('./lib/storage.js');
 const { buildJobDiagnostics } = await import('./modules/jobs.routes.js');
 const { decideBudget, nextUtcMidnight } = await import('./lib/budget.js');
+const { ffmpegAvailable } = await import('./lib/ffmpeg.js');
 
 test('crypto: AES-256-GCM round trip + tamper detection', () => {
   const enc = encryptSecret('super-secret-token');
@@ -290,4 +291,9 @@ test('decideBudget: allows up to the cap, refuses past it, resets at UTC midnigh
   assert.equal(overCap.allowed, false);
   assert.equal(overCap.remaining, 0);
   assert.equal(overCap.resetAt, resetAt);
+});
+
+test('ffmpegAvailable: never throws (missing binary reports false, not ENOENT)', async () => {
+  const available = await ffmpegAvailable();
+  assert.equal(typeof available, 'boolean');
 });
