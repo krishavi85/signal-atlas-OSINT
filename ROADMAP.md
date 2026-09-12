@@ -26,7 +26,7 @@ Legend: ✅ done · 🟡 partial (usable, gaps noted) · ⚪ scaffolded (interfa
 | Audit log (§29) | ✅ | append-only, covers all mutations |
 | SSRF guard / outbound fetch policy (§40) | ✅ | |
 | Structured logging (§50) | ✅ | pino, request IDs, job diagnostics |
-| Health/metrics endpoints | 🟡 | `/healthz`, `/readyz` done; Prometheus `/metrics` pending |
+| Health/metrics endpoints | ✅ | `/healthz`, `/readyz`, Prometheus `/metrics` (added Phase 9) |
 
 ## Phase 2 — Search
 
@@ -71,7 +71,7 @@ Legend: ✅ done · 🟡 partial (usable, gaps noted) · ⚪ scaffolded (interfa
 | Per-project connector scope config (§4, §17) | ✅ `connectorScopesJson` on Project + "Configure sources" UI (RSS feeds, subreddits, …); orchestrator passes it into `search({ scope })` |
 | **Explicitly NOT built:** scraping, auth bypass, private data, CAPTCHA solving, non-public account data | ✅ by policy (§30) — connectors report `PLATFORM_RESTRICTION` gaps instead |
 
-## Phase 5 — AI  🟡 done except deep report polish
+## Phase 5 — AI  ✅
 
 | Item | State |
 |---|---|
@@ -81,7 +81,7 @@ Legend: ✅ done · 🟡 partial (usable, gaps noted) · ⚪ scaffolded (interfa
 | Semantic search (§23) | ✅ (Phase 3) |
 | Report generation (§28) | ✅ `generateReport` — deterministic assembly of Scope/Methodology/Coverage/Entities/Timeline/Claims/Contradictions/Source-Assessment/Evidence/Limitations from the DB + AI narrative for Exec-Summary/Key-Findings/Conclusion **when a provider is configured** (marked unavailable otherwise, never faked); Markdown / HTML / JSON export with sha256 checksum; Analyst-tab UI |
 | Explainability "WHY?" (§47) | ✅ claim WHY panel (Phase 3) + report ungrounded-statement callouts + `citedEvidenceIds` on every AI output |
-| PDF / DOCX report export | ⚪ Phase 8 (MD/HTML/JSON done) |
+| PDF / DOCX report export | ✅ Phase 8 |
 
 ## Phase 6 — Visual intelligence  ✅ (except video/audio transcription)
 
