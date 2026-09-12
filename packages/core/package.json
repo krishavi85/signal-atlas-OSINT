@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./boolean-query": {
+      "types": "./dist/boolean-query.d.ts",
+      "default": "./dist/boolean-query.js"
     }
   },
   "scripts": {

@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, type KeyboardEvent, type ReactNode } from 'react';
 import { IconAlertTriangle, IconInbox } from './icons';
 
 export type Tone = 'neutral' | 'green' | 'amber' | 'red' | 'blue' | 'violet';
@@ -181,6 +181,55 @@ export function LatencySparkline({
           />
         ))}
       </div>
+    </div>
+  );
+}
+
+/** Chip-list input: type + Enter/comma to add, click × or Backspace-on-empty to remove. */
+export function TagInput({
+  values,
+  onChange,
+  placeholder,
+}: {
+  values: string[];
+  onChange: (values: string[]) => void;
+  placeholder?: string;
+}) {
+  const [draft, setDraft] = useState('');
+
+  function commit(raw: string) {
+    const v = raw.trim();
+    if (v && !values.includes(v)) onChange([...values, v]);
+    setDraft('');
+  }
+
+  function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      commit(draft);
+    } else if (e.key === 'Backspace' && draft === '' && values.length > 0) {
+      onChange(values.slice(0, -1));
+    }
+  }
+
+  return (
+    <div className="input flex flex-wrap items-center gap-1.5 py-1.5">
+      {values.map((v, i) => (
+        <span key={i} className="inline-flex items-center gap-1 rounded-full border border-ink-700 bg-ink-800 px-2 py-0.5 text-[11px] text-slate-300">
+          {v}
+          <button type="button" onClick={() => onChange(values.filter((_, j) => j !== i))} className="text-slate-500 hover:text-slate-200" aria-label={`Remove ${v}`}>
+            ×
+          </button>
+        </span>
+      ))}
+      <input
+        className="min-w-[6rem] flex-1 bg-transparent text-sm outline-none placeholder:text-slate-600"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={onKeyDown}
+        onBlur={() => commit(draft)}
+        placeholder={values.length === 0 ? placeholder : undefined}
+      />
     </div>
   );
 }

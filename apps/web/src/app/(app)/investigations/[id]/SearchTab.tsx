@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, streamUrl } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 import { Badge, EmptyState, ErrorState, Spinner } from '@/components/ui';
+import { QueryBuilder } from '@/components/QueryBuilder';
 
 interface PreviewResult {
   plannedQueries: Array<{ query: string; kind: string; rationale: string; generatedBy?: string }>;
@@ -133,11 +134,10 @@ export function SearchTab({ projectId, canEdit, projectActive }: { projectId: st
       <div className="card space-y-3 p-4">
         <div>
           <label className="label">Query (supports AND / OR / NOT / &quot;phrase&quot; / site: / -domain / after:YYYY-MM-DD)</label>
-          <input
-            className="input"
-            placeholder='e.g.  "Acme Robotics" AND (funding OR acquisition) after:2025-01-01'
+          <QueryBuilder
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={setQuery}
+            placeholder='e.g.  "Acme Robotics" AND (funding OR acquisition) after:2025-01-01'
           />
         </div>
         <div className="flex flex-wrap gap-3">

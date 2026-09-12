@@ -34,7 +34,7 @@ Legend: ✅ done · 🟡 partial (usable, gaps noted) · ⚪ scaffolded (interfa
 |---|---|---|
 | Web search connectors: RSS, Wikipedia, HN, generic-fetch | ✅ | key-free, real |
 | Web search connectors: Google CSE, Bing, Brave, SearXNG, SerpAPI | 🟡 | implemented; inactive without key → `NOT_CONFIGURED` |
-| Universal search interface + Boolean parser (§4) | 🟡 | parser + AND/OR/NOT/quote/site:/-domain/date done; advanced builder UI pending |
+| Universal search interface + Boolean parser (§4) | ✅ | parser + AND/OR/NOT/quote/site:/-domain/date done; visual query builder (Simple/Builder toggle, round-trips through the real parser, live parsed-query preview) in Universal Search and per-investigation Search tab |
 | Query expansion engine (§5), original vs. generated kept separate | 🟡 | heuristic expansions done; AI expansion needs provider |
 | Result normalization | ✅ | per-connector `normalize()` |
 | Deduplication (URL canon, content hash, near-dup simhash) (§18) | 🟡 | exact + canonical + simhash done; semantic needs embeddings |

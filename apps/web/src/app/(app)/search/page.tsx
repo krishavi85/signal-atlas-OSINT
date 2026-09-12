@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 import { Badge, EmptyState, Spinner } from '@/components/ui';
+import { QueryBuilder } from '@/components/QueryBuilder';
 import { IconSearch } from '@/components/icons';
 
 /**
@@ -64,16 +65,14 @@ export default function UniversalSearchPage() {
       <form onSubmit={go} className="card space-y-4 p-5">
         <div>
           <label className="label">Query</label>
-          <input
-            className="input text-base"
-            autoFocus
-            placeholder='name · org · username · domain · "phrase" · #hashtag · topic'
+          <QueryBuilder
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            required
+            onChange={setQuery}
+            placeholder='name · org · username · domain · "phrase" · #hashtag · topic'
           />
           <p className="mt-1 text-[11px] text-slate-600">
-            Boolean: <code>AND OR NOT &quot;exact&quot; site:example.com -spam.com after:2025-01-01 lang:en</code>
+            Boolean: <code>AND OR NOT &quot;exact&quot; site:example.com -spam.com after:2025-01-01 lang:en</code> — or
+            switch to Builder above.
           </p>
         </div>
 
@@ -113,7 +112,7 @@ export default function UniversalSearchPage() {
         )}
 
         {err && <p className="text-xs text-red-400">{err}</p>}
-        <button className="btn-primary w-full" disabled={busy}>
+        <button className="btn-primary w-full" disabled={busy || !query.trim()}>
           {busy ? 'Starting…' : 'Search'}
         </button>
       </form>
