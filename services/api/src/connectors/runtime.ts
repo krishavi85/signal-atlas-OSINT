@@ -7,6 +7,7 @@ import { prisma } from '../db.js';
 import { KNOWN_CONNECTOR_ENV_KEYS, loadEnv } from '../env.js';
 import { decryptJson } from '../lib/crypto.js';
 import { makeCache } from '../lib/cache.js';
+import { consumeDailyBudget } from '../lib/budget.js';
 import { logger } from '../logger.js';
 import { safeFetch } from '../lib/safeFetch.js';
 
@@ -53,6 +54,7 @@ export async function makeConnectorContext(connectorId: string, opts: ContextOpt
     log: (level, msg, extra) => logger[level]({ connector: connectorId, ...extra }, msg),
     safeFetch: (url, init) => safeFetch(url, init),
     cache: makeCache(connectorId, { refresh: opts.refreshCache }),
+    budget: { consume: (maxPerDay: number) => consumeDailyBudget(connectorId, maxPerDay) },
     signal: opts.signal,
   };
 }

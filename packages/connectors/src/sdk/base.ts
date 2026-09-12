@@ -8,6 +8,7 @@ import {
 } from './capabilities.js';
 import { TokenBucketLimiter } from './rate-limit.js';
 import {
+  ConnectorRequestError,
   ConnectorUnsupportedError,
   type Connector,
   type ConnectorContext,
@@ -26,6 +27,8 @@ export interface BaseConnectorOptions {
   category: CapabilityReport['category'];
   declared: Capabilities;
   limiter: TokenBucketLimiter;
+  /** Enforce a persistent daily request cap against a documented provider quota (§38). */
+  dailyBudget?: number;
 }
 
 /**
@@ -39,6 +42,7 @@ export abstract class BaseConnector implements Connector {
   protected readonly category: CapabilityReport['category'];
   protected readonly declared: Capabilities;
   protected readonly limiter: TokenBucketLimiter;
+  protected readonly dailyBudget?: number;
 
   constructor(opts: BaseConnectorOptions) {
     this.id = opts.id;
@@ -46,6 +50,7 @@ export abstract class BaseConnector implements Connector {
     this.category = opts.category;
     this.declared = opts.declared;
     this.limiter = opts.limiter;
+    this.dailyBudget = opts.dailyBudget;
   }
 
   /** Subclasses declare what config is missing given a context. */
@@ -144,15 +149,42 @@ export abstract class BaseConnector implements Connector {
     };
   }
 
-  /** rate-limited JSON GET with retry on retryable errors */
+  /**
+   * Throws if this connector has a daily budget and it's exhausted. No-op
+   * otherwise. `countsAgainstBudget: false` is for health-probe calls — a
+   * liveness ping is administrative overhead, not investigative use, and
+   * shouldn't compete with real searches for a scarce daily quota.
+   */
+  protected async checkBudget(ctx: ConnectorContext, countsAgainstBudget: boolean): Promise<void> {
+    if (!countsAgainstBudget || !this.dailyBudget || !ctx.budget) return;
+    const b = await ctx.budget.consume(this.dailyBudget);
+    if (!b.allowed) {
+      throw new ConnectorRequestError(
+        this.id,
+        `Daily budget of ${this.dailyBudget} requests exhausted for "${this.id}" (protects the provider's documented quota); resets ${b.resetAt}.`,
+        429,
+        false,
+      );
+    }
+  }
+
+  /** rate-limited JSON GET with retry on retryable errors; optionally cached (§39) */
   protected async getJson<T = unknown>(
     ctx: ConnectorContext,
     url: string,
     init: RequestInit & { timeoutMs?: number } = {},
     retries = 2,
+    cacheTtlSeconds?: number,
+    countsAgainstBudget = true,
   ): Promise<T> {
+    const cacheKey = cacheTtlSeconds && ctx.cache ? `${this.id}:GET:${url}` : null;
+    if (cacheKey) {
+      const cached = await ctx.cache!.get(cacheKey);
+      if (cached !== null) return JSON.parse(cached) as T;
+    }
     let lastErr: unknown;
     for (let attempt = 0; attempt <= retries; attempt++) {
+      await this.checkBudget(ctx, countsAgainstBudget);
       await this.limiter.acquire(ctx.signal);
       try {
         const res = await ctx.safeFetch(url, {
@@ -171,7 +203,9 @@ export abstract class BaseConnector implements Connector {
           throw new Error(`HTTP ${res.status} ${res.statusText}`);
         }
         this.limiter.onSuccess();
-        return (await res.json()) as T;
+        const parsed = (await res.json()) as T;
+        if (cacheKey) await ctx.cache!.set(cacheKey, JSON.stringify(parsed), cacheTtlSeconds!);
+        return parsed;
       } catch (err) {
         lastErr = err;
         if (attempt === retries) break;
@@ -181,11 +215,20 @@ export abstract class BaseConnector implements Connector {
     throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
   }
 
+  /** rate-limited text GET; optionally cached (§39) — used for page fetches and robots.txt */
   protected async getText(
     ctx: ConnectorContext,
     url: string,
     init: RequestInit & { timeoutMs?: number } = {},
+    cacheTtlSeconds?: number,
   ): Promise<{ body: string; status: number; contentType: string | null; headers: Record<string, string> }> {
+    type CachedText = { body: string; status: number; contentType: string | null; headers: Record<string, string> };
+    const cacheKey = cacheTtlSeconds && ctx.cache ? `${this.id}:GET:${url}` : null;
+    if (cacheKey) {
+      const cached = await ctx.cache!.get(cacheKey);
+      if (cached !== null) return JSON.parse(cached) as CachedText;
+    }
+    await this.checkBudget(ctx, true);
     await this.limiter.acquire(ctx.signal);
     const res = await ctx.safeFetch(url, {
       ...init,
@@ -196,12 +239,14 @@ export abstract class BaseConnector implements Connector {
     else this.limiter.onSuccess();
     const headers: Record<string, string> = {};
     res.headers.forEach((v, k) => (headers[k] = v));
-    return {
+    const result: CachedText = {
       body: await res.text(),
       status: res.status,
       contentType: res.headers.get('content-type'),
       headers,
     };
+    if (cacheKey && result.status < 400) await ctx.cache!.set(cacheKey, JSON.stringify(result), cacheTtlSeconds!);
+    return result;
   }
 }
 

@@ -739,6 +739,21 @@ model ResponseCache {
   @@map("response_cache")
 }
 
+// Per-connector daily request budget (§38) — distinct from the in-process
+// token-bucket rate limiter, which only smooths request *rate*. This caps
+// total requests/day against a documented provider quota (e.g. Google CSE's
+// 100 free queries/day) and survives process restarts.
+model ConnectorBudgetUsage {
+  key         String   @id // "<connectorId>:<YYYY-MM-DD>" (UTC day bucket)
+  connectorId String
+  day         String
+  count       Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  @@index([connectorId, day])
+  @@map("connector_budget_usage")
+}
+
 // Stored AI research-analyst outputs (§13, §47). Kept distinct from human notes
 // (§22) and always carries its evidence citations + anything the citation
 // validator could not ground (§14).

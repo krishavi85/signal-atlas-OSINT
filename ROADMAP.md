@@ -39,8 +39,8 @@ Legend: ✅ done · 🟡 partial (usable, gaps noted) · ⚪ scaffolded (interfa
 | Result normalization | ✅ | per-connector `normalize()` |
 | Deduplication (URL canon, content hash, near-dup simhash) (§18) | 🟡 | exact + canonical + simhash done; semantic needs embeddings |
 | Source storage + search history | ✅ | |
-| Caching (search responses, fetched pages) (§39) | 🟡 | response cache w/ TTL done; page cache pending |
-| Rate limiting (per-provider, backoff, jitter, budgets) (§38) | 🟡 | token bucket + backoff done; budget enforcement partial |
+| Caching (search responses, fetched pages) (§39) | ✅ | DB-backed TTL cache (`lib/cache.ts`) is now actually wired into `BaseConnector.getJson`/`getText` — generic web-page fetches cache 1h, robots.txt lookups 24h; cache hits skip the rate limiter and budget entirely |
+| Rate limiting (per-provider, backoff, jitter, budgets) (§38) | ✅ | token bucket + backoff done; persistent per-connector daily request budget (survives restarts, DB-backed) enforced for Google CSE against its documented 100/day free-tier cap; health-probe pings are exempted so they don't compete with real searches for the quota |
 
 ## Phase 3 — Intelligence  🟡 mostly done, verified end-to-end
 

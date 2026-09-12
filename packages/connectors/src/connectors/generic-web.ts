@@ -17,7 +17,9 @@ import { extractHtmlMeta, stripTags } from '../lib/markup.js';
  * Generic web fetch connector — retrieves a single user-supplied URL (§3
  * "User-provided URLs"). Honours robots.txt for the fetch path, respects the
  * SSRF guard in ctx.safeFetch, hashes content for evidence, and extracts
- * readable text + metadata. Does NOT crawl or follow links.
+ * readable text + metadata. Does NOT crawl or follow links. Fetched pages are
+ * cached 1h and robots.txt lookups 24h (§39) to avoid re-hitting the same
+ * site on repeat fetches within an investigation.
  */
 export class GenericWebConnector extends BaseConnector {
   constructor() {
@@ -52,7 +54,7 @@ export class GenericWebConnector extends BaseConnector {
   private async robotsAllows(ctx: ConnectorContext, target: URL): Promise<boolean> {
     try {
       const robotsUrl = `${target.protocol}//${target.host}/robots.txt`;
-      const res = await this.getText(ctx, robotsUrl, { timeoutMs: 5000 });
+      const res = await this.getText(ctx, robotsUrl, { timeoutMs: 5000 }, 86_400);
       if (res.status >= 400) return true; // no robots => allowed
       return isPathAllowed(res.body, target.pathname, ctx.userAgent);
     } catch {
@@ -68,7 +70,7 @@ export class GenericWebConnector extends BaseConnector {
         `robots.txt for ${target.host} disallows automated retrieval of ${target.pathname}. Not fetched.`,
       );
     }
-    const res = await this.getText(ctx, params.url, { timeoutMs: 15_000 });
+    const res = await this.getText(ctx, params.url, { timeoutMs: 15_000 }, 3600);
     return {
       url: params.url,
       status: res.status,
@@ -127,7 +129,7 @@ export class GenericWebConnector extends BaseConnector {
   }
 
   async healthCheck(): Promise<ConnectorHealth> {
-    return this.health('ONLINE', null, 'Ready to fetch user-provided URLs (SSRF-guarded, robots-aware).');
+    return this.health('ONLINE', null, 'Ready to fetch user-provided URLs (SSRF-guarded, robots-aware, cached 1h).');
   }
 }
 

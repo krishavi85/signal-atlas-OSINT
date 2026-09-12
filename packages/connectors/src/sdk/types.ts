@@ -48,6 +48,10 @@ export interface ConnectorContext {
     get: (key: string) => Promise<string | null>;
     set: (key: string, value: string, ttlSeconds: number) => Promise<void>;
   };
+  /** persistent per-connector daily request budget (§38), distinct from the in-process token bucket */
+  budget?: {
+    consume: (maxPerDay: number) => Promise<{ allowed: boolean; remaining: number; resetAt: string }>;
+  };
   signal?: AbortSignal;
 }
 

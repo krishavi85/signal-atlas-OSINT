@@ -18,6 +18,7 @@ const { toCsv } = await import('./lib/csv.js');
 const { parseMarkdownBlocks } = await import('./lib/markdownBlocks.js');
 const { LocalStorage } = await import('./lib/storage.js');
 const { buildJobDiagnostics } = await import('./modules/jobs.routes.js');
+const { decideBudget, nextUtcMidnight } = await import('./lib/budget.js');
 
 test('crypto: AES-256-GCM round trip + tamper detection', () => {
   const enc = encryptSecret('super-secret-token');
@@ -271,4 +272,22 @@ test('parseMarkdownBlocks: headings, paragraphs, lists, tables, blockquotes', ()
   assert.deepEqual(blocks[2], { type: 'list', items: ['item one', 'item two'] });
   assert.deepEqual(blocks[3], { type: 'table', header: ['A', 'B'], rows: [['1', '2']] });
   assert.deepEqual(blocks[4], { type: 'blockquote', lines: ['a warning'] });
+});
+
+test('decideBudget: allows up to the cap, refuses past it, resets at UTC midnight', () => {
+  const resetAt = nextUtcMidnight(new Date('2025-06-15T10:00:00Z')).toISOString();
+  assert.equal(resetAt, '2025-06-16T00:00:00.000Z');
+
+  const under = decideBudget(1, 100, resetAt);
+  assert.equal(under.allowed, true);
+  assert.equal(under.remaining, 99);
+
+  const atCap = decideBudget(100, 100, resetAt);
+  assert.equal(atCap.allowed, true);
+  assert.equal(atCap.remaining, 0);
+
+  const overCap = decideBudget(101, 100, resetAt);
+  assert.equal(overCap.allowed, false);
+  assert.equal(overCap.remaining, 0);
+  assert.equal(overCap.resetAt, resetAt);
 });

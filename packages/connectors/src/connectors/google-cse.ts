@@ -39,6 +39,7 @@ export class GoogleCseConnector extends BaseConnector {
         AUTH_REQUIRED: true,
       },
       limiter: new TokenBucketLimiter(1, 0.2, 1), // conservative vs 100/day
+      dailyBudget: 100, // Google CSE's documented free-tier cap (§38)
     });
   }
 
@@ -122,9 +123,12 @@ export class GoogleCseConnector extends BaseConnector {
       u.searchParams.set('cx', ctx.config.GOOGLE_CSE_CX!);
       u.searchParams.set('q', 'test');
       u.searchParams.set('num', '1');
-      await this.getJson(ctx, u.toString());
+      // A liveness probe is administrative overhead, not investigative use —
+      // it must not compete with real searches for the scarce daily quota.
+      await this.getJson(ctx, u.toString(), {}, 2, undefined, false);
     });
     if (probe.ok) return this.health('ONLINE', probe.latencyMs, 'Google CSE authenticated and reachable');
+    if (probe.error?.includes('Daily budget')) return this.health('RATE_LIMITED', probe.latencyMs, `Local daily budget (${this.dailyBudget}) exhausted — protecting your quota, not a provider error`, probe.error);
     if (probe.error?.includes('403')) return this.health('AUTH_REQUIRED', probe.latencyMs, 'Google CSE rejected key or quota exceeded', probe.error);
     if (probe.error?.includes('429')) return this.health('RATE_LIMITED', probe.latencyMs, 'Google CSE daily quota exhausted', probe.error);
     return this.health('OFFLINE', probe.latencyMs, 'Google CSE probe failed', probe.error);
