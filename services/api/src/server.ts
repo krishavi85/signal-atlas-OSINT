@@ -71,7 +71,6 @@ export async function buildServer(): Promise<FastifyInstance> {
         ...(transcription.available ? [] : [`Video / audio transcription (${transcription.reason})`]),
         'Reverse image search (needs a provider API key)',
         'Distributed tracing (needs an OpenTelemetry collector)',
-        'Load/performance test harness',
       ],
       implemented: [
         'Multi-source search orchestration + query planning + coverage reporting',
@@ -91,6 +90,7 @@ export async function buildServer(): Promise<FastifyInstance> {
       'Explainable confidence ("WHY?") with exposed factors',
       'God Mode — one TARGET/OBJECTIVE/DEPTH run composing every engine (search, evidence, entities, resolution, relationships, claims, corroboration, contradictions, timeline, report, monitoring recommendations) into the full §56 15-section result',
         ...(transcription.available ? ['Video/audio transcription via ffmpeg + Whisper (when OPENAI_API_KEY is configured)'] : []),
+        'Load/performance test harness (npm run load-test -w @osint/api)',
       ],
     };
   };

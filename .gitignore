@@ -22,5 +22,6 @@ data/
 storage/
 services/api/backups/
 services/api/.before-restore/
+services/api/loadtest-reports/
 .DS_Store
 .turbo/

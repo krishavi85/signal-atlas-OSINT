@@ -15,6 +15,7 @@
     "db:verify": "node scripts/verify-migrations.mjs",
     "backup": "node scripts/backup.mjs",
     "restore": "node scripts/restore.mjs",
+    "load-test": "node scripts/loadtest.mjs",
     "db:seed": "node --import tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "test": "node --test --import tsx \"src/**/*.test.ts\""

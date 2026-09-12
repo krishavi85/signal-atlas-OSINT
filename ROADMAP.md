@@ -138,7 +138,7 @@ manifest.
 | Backup / restore | ✅ `scripts/backup.mjs` + `scripts/restore.mjs`, **verified**: backed up a live DB, deleted it, restored, confirmed identical row counts |
 | Observability: `/metrics` | ✅ real Prometheus exposition (job/evidence/project/connector-health counts, process stats) — closes the "Prometheus /metrics pending" gap from Phase 1 |
 | Observability: job diagnostics | ✅ `GET /jobs/:id/diagnostics` — WHAT/WHERE/WHY/DATA-LOST/RETRY per §50, rule-based from the job's real recorded state |
-| Load/performance testing | ⚪ not done — no load-test harness or benchmarks yet |
+| Load/performance testing | ✅ `services/api/scripts/loadtest.mjs` (`npm run load-test -w @osint/api`) — dependency-free concurrent-worker harness against the platform's own request path (auth, dashboard, connectors, projects); reports per-endpoint p50/p90/p99 latency, throughput, and rate-limited (429) counts separately from real errors, optional JSON report via `--out` |
 | Tracing | ⚪ not implemented (would need an OTel collector); structured request-id-tagged logs are the practical substitute today |
 | TLS termination | 🟡 operator responsibility (reverse proxy), documented in `docs/SECURITY.md` |
 
