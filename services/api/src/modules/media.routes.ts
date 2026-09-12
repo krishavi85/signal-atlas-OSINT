@@ -9,7 +9,6 @@ import { enqueueJob } from '../jobs/runner.js';
 import { storage } from '../lib/storage.js';
 import { IMAGE_CONTENT_TYPES } from '../lib/mediaExtract.js';
 import { transcriptionCapable, visionCapable } from '../orchestrator/MediaEngine.js';
-import { reverseImageSearchStatus } from '../ai/reverseImageSearch.js';
 
 export async function mediaRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', app.authenticate);
@@ -22,13 +21,11 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
       prisma.mediaAsset.groupBy({ by: ['status'], where: { projectId: id }, _count: true }),
     ]);
     const transcription = await transcriptionCapable();
-    const reverseImage = reverseImageSearchStatus();
     return {
       total,
       byStatus: Object.fromEntries(byStatus.map((s) => [s.status, s._count])),
       vision: visionCapable(),
       transcription,
-      reverseImage,
       capabilities: {
         imageMetadata: true,
         exifGps: true,
@@ -36,7 +33,7 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
         ocr: 'vision-model', // requires a configured multimodal model
         videoAudioTranscription: transcription.available ? true : transcription.reason,
         objectLogoRecognition: 'vision-model',
-        reverseImageSearch: reverseImage.available ? true : reverseImage.reason,
+        reverseImageSearch: false, // no provider configured
         facialIdentification: 'never', // §19/§30 — not built, by policy
       },
     };
@@ -122,9 +119,7 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
   app.post('/projects/:id/media/process', async (req) => {
     const { id } = z.object({ id: z.string() }).parse(req.params);
     await assertProjectAccess(req, id, 'EDITOR');
-    const { vision, transcribe, reverseImageSearch } = z
-      .object({ vision: z.boolean().default(false), transcribe: z.boolean().default(false), reverseImageSearch: z.boolean().default(false) })
-      .parse(req.body ?? {});
+    const { vision, transcribe } = z.object({ vision: z.boolean().default(false), transcribe: z.boolean().default(false) }).parse(req.body ?? {});
     if (vision && !visionCapable().available) {
       throw badRequest(`Vision OCR/description unavailable: ${visionCapable().reason}`);
     }
@@ -132,10 +127,7 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
       const cap = await transcriptionCapable();
       if (!cap.available) throw badRequest(`Transcription unavailable: ${cap.reason}`);
     }
-    if (reverseImageSearch && !reverseImageSearchStatus().available) {
-      throw badRequest(`Reverse image search unavailable: ${reverseImageSearchStatus().reason}`);
-    }
-    const jobId = await enqueueJob({ type: 'MEDIA_PROCESS', projectId: id, payload: { projectId: id, vision, transcribe, reverseImageSearch } });
+    const jobId = await enqueueJob({ type: 'MEDIA_PROCESS', projectId: id, payload: { projectId: id, vision, transcribe } });
     return { jobId };
   });
 

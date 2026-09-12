@@ -93,7 +93,7 @@ Legend: ✅ done · 🟡 partial (usable, gaps noted) · ⚪ scaffolded (interfa
 | Media intelligence (§19) — image format + dimensions, EXIF incl. GPS, perceptual-hash (dHash) duplicate detection + clustering | ✅ `MediaEngine`, auto-collected from evidence media refs + direct upload, `MEDIA_PROCESS` job, Media tab |
 | Media OCR / description | ✅ via a configured **multimodal** model (claude-*, gpt-4o, or an Ollama vision model); vision prompt forbids identifying people; honest unavailable otherwise |
 | Video / audio transcription | ✅ ffmpeg (audio extraction/normalization to 16kHz mono mp3) + OpenAI Whisper (`OPENAI_API_KEY`, independent of `AI_PROVIDER`); opt-in `transcribe:true` on media processing; honestly SKIPPED naming the exact missing piece (ffmpeg not on PATH, and/or no key) when unavailable |
-| Reverse image search | ✅ Google Cloud Vision Web Detection (`GOOGLE_VISION_API_KEY`) — content/perceptual matching against Google's web index (stock-photo reuse, reposted images, best-guess labels); opt-in `reverseImageSearch:true` on media processing, skipped for images already flagged as perceptual duplicates. Explicitly not TinEye (would need HMAC request signing not implemented here) and explicitly not face/identity matching — see docs/LEGAL.md |
+| Reverse image search | ⚪ needs a provider API key (TinEye / Vision) |
 | **Facial identification / biometric matching** | ❌ **never built, by policy (§19, §30)** — no face code anywhere |
 
 ## Phase 7 — Monitoring  ✅
@@ -173,4 +173,3 @@ API that it created a real, enabled daily `MonitoringJob`.
 | No search API keys | Only RSS/Wikipedia/HN/generic-fetch active | Set any of `GOOGLE_CSE_*`, `BING_SEARCH_API_KEY`, `BRAVE_SEARCH_API_KEY`, or `SEARXNG_BASE_URL` |
 | Meta/Instagram require app review | Social connectors inert | Complete Meta app review, obtain page/IG tokens |
 | No ffmpeg installed | Video/audio transcription unavailable | Install ffmpeg and put it on `PATH` |
-| No GOOGLE_VISION_API_KEY | Reverse image search unavailable | Enable the Cloud Vision API and create an API key in Google Cloud Console |

@@ -7,7 +7,6 @@ import { safeFetch } from '../lib/safeFetch.js';
 import { storage } from '../lib/storage.js';
 import { chat, chatStatus } from '../ai/chat.js';
 import { transcribeAudio, transcriptionStatus } from '../ai/transcribe.js';
-import { reverseImageSearch, reverseImageSearchStatus } from '../ai/reverseImageSearch.js';
 import { extractAudioTrack, ffmpegAvailable } from '../lib/ffmpeg.js';
 import {
   extractImageMeta,
@@ -24,14 +23,11 @@ import {
  * perceptual-hash duplicate-image detection, and — only when a vision model is
  * configured — text/description extraction. Video/audio transcription runs
  * only when both ffmpeg (audio extraction/normalization) and OPENAI_API_KEY
- * (Whisper) are available. Reverse image search (only when GOOGLE_VISION_API_KEY
- * is configured) finds where an image *appears elsewhere on the web* via
- * content/perceptual matching — never identity. Any of these report honestly
- * as SKIPPED with the exact missing piece when unavailable, never faked (§51).
+ * (Whisper) are available; otherwise it's reported honestly as SKIPPED with
+ * the exact missing piece, never faked (§51).
  *
  * Does NOT: face detection, facial similarity, or any biometric identification
- * of individuals (§19, §30) — reverse image search matches image content
- * against Google's web index, it never asks "who is this."
+ * of individuals (§19, §30).
  */
 
 const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
@@ -98,30 +94,20 @@ export interface MediaProcessResult {
   errors: number;
   visionUsed: boolean;
   transcribed: number;
-  reverseImageSearched: number;
 }
 
 export async function processProjectMedia(
   projectId: string,
-  opts: { vision?: boolean; transcribe?: boolean; reverseImageSearch?: boolean; limit?: number } = {},
+  opts: { vision?: boolean; transcribe?: boolean; limit?: number } = {},
 ): Promise<MediaProcessResult> {
   const pending = await prisma.mediaAsset.findMany({
     where: { projectId, status: 'PENDING' },
     take: opts.limit ?? 60,
   });
-  const result: MediaProcessResult = {
-    processed: 0,
-    duplicates: 0,
-    skipped: 0,
-    errors: 0,
-    visionUsed: false,
-    transcribed: 0,
-    reverseImageSearched: 0,
-  };
+  const result: MediaProcessResult = { processed: 0, duplicates: 0, skipped: 0, errors: 0, visionUsed: false, transcribed: 0 };
   const wantVision = Boolean(opts.vision) && visionCapable().available;
   const wantTranscribe = Boolean(opts.transcribe);
   const transcribeCap = wantTranscribe ? await transcriptionCapable() : { available: false };
-  const wantReverseImageSearch = Boolean(opts.reverseImageSearch) && reverseImageSearchStatus().available;
 
   // known hashes in this project for dup detection
   const known = await prisma.mediaAsset.findMany({
@@ -261,18 +247,6 @@ export async function processProjectMedia(
         }
       }
 
-      // reverse image search — web-content matching, never identity (§19/§30)
-      let reverseImageJson: Prisma.InputJsonValue | undefined;
-      if (wantReverseImageSearch && !duplicateOfId) {
-        try {
-          const r = await reverseImageSearch(buf);
-          reverseImageJson = r as unknown as Prisma.InputJsonValue;
-          result.reverseImageSearched++;
-        } catch (err) {
-          logger.warn({ err, assetId: asset.id }, 'reverse image search failed (non-fatal)');
-        }
-      }
-
       const updated = await prisma.mediaAsset.update({
         where: { id: asset.id },
         data: {
@@ -289,7 +263,6 @@ export async function processProjectMedia(
           capturedAt: meta.createdAt ? new Date(meta.createdAt) : null,
           visionText,
           ocrText: visionText, // vision output doubles as OCR here
-          ...(reverseImageJson !== undefined ? { reverseImageJson } : {}),
           clusterId,
           duplicateOfId,
           status: 'PROCESSED',
@@ -314,7 +287,7 @@ export async function processProjectMedia(
     action: 'AI_ANALYSIS_EXECUTED',
     targetType: 'project',
     targetId: projectId,
-    summary: `Media processing: ${result.processed} processed (${result.duplicates} perceptual duplicates, ${result.transcribed} transcribed, ${result.reverseImageSearched} reverse-image-searched), ${result.skipped} skipped, ${result.errors} errors${result.visionUsed ? ', vision model used for OCR/description' : ''}`,
+    summary: `Media processing: ${result.processed} processed (${result.duplicates} perceptual duplicates, ${result.transcribed} transcribed), ${result.skipped} skipped, ${result.errors} errors${result.visionUsed ? ', vision model used for OCR/description' : ''}`,
   });
   return result;
 }

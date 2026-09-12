@@ -14,15 +14,7 @@ policy statements.
   that two people are the same individual (there is **no face-detection or
   facial-similarity code anywhere in the codebase**; the media pipeline extracts
   metadata, EXIF/GPS, and perceptual **image** hashes only, and the vision-model
-  prompt explicitly forbids identifying, naming, or profiling people — §19).
-  Reverse image search (Google Cloud Vision's Web Detection feature) is
-  content/perceptual matching against Google's public image index — "has this
-  picture appeared elsewhere" — not identity search; Vision API's separate
-  face-detection feature is never requested, and the result never asserts who
-  is in an image. Services that perform identity-based face search across the
-  web (e.g. FaceCheck.id) or aggregate phone/email-to-person lookups are
-  explicitly out of scope for this platform, by policy, regardless of the
-  provider's own terms
+  prompt explicitly forbids identifying, naming, or profiling people — §19)
 - track precise private real-time location
 - ingest illegally obtained or leaked personal databases
 - exploit platform vulnerabilities
