@@ -18,7 +18,7 @@
     "load-test": "node scripts/loadtest.mjs",
     "db:seed": "node --import tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "test": "node --test --import tsx \"src/**/*.test.ts\""
+    "test": "node ../../scripts/run-tests.mjs"
   },
   "prisma": {
     "seed": "node --import tsx prisma/seed.ts"
