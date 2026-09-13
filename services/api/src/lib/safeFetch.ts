@@ -17,6 +17,15 @@ import { logger } from '../logger.js';
  * between our check and the request. For untrusted targets this is acceptable
  * given the other guards; a hardened deployment should route outbound fetches
  * through an egress proxy with an allowlist.
+ *
+ * Exception: a small, explicit allowlist of operator-configured self-hosted
+ * service origins (currently just SEARXNG_BASE_URL). Those are config the
+ * operator set themselves — not attacker-influenced input like a search
+ * result or a user-submitted URL — and self-hosting on localhost/a private
+ * IP is the standard, documented deployment for them. Matching is by exact
+ * origin (scheme+host+port), so this never widens to "any loopback address"
+ * — a connector still can't be tricked into reaching some other private
+ * service via a discovered or user-supplied URL.
  */
 
 const MAX_REDIRECTS = 5;
@@ -25,6 +34,29 @@ const MAX_BYTES = 8 * 1024 * 1024;
 export interface SafeFetchInit extends RequestInit {
   timeoutMs?: number;
   maxBytes?: number;
+}
+
+/** Parses just far enough to compare origins; never throws (a bad URL simply won't match the allowlist). */
+function safeOrigin(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return '';
+  }
+}
+
+function operatorAllowedOrigins(): Set<string> {
+  const env = loadEnv();
+  const origins = new Set<string>();
+  for (const raw of [env.raw.SEARXNG_BASE_URL]) {
+    if (!raw) continue;
+    try {
+      origins.add(new URL(raw).origin);
+    } catch {
+      /* malformed config value — ignore, the connector's own validation surfaces this */
+    }
+  }
+  return origins;
 }
 
 async function assertHostAllowed(hostname: string): Promise<void> {
@@ -50,13 +82,26 @@ export async function safeFetch(url: string, init: SafeFetchInit = {}): Promise<
   const env = loadEnv();
   const timeoutMs = init.timeoutMs ?? 20_000;
   const maxBytes = init.maxBytes ?? MAX_BYTES;
+  const allowedOrigins = operatorAllowedOrigins();
   let current = url;
   let redirects = 0;
 
   for (;;) {
-    const check = validateOutboundUrl(current);
-    if (!check.ok || !check.parsed) throw new Error(`Outbound request refused: ${check.reason} (${current})`);
-    await assertHostAllowed(check.parsed.hostname);
+    let parsed: URL;
+    if (allowedOrigins.size > 0 && allowedOrigins.has(safeOrigin(current))) {
+      // Operator-configured self-hosted origin (exact match) — skip the
+      // private/loopback block, but still require a sane URL shape.
+      try {
+        parsed = new URL(current);
+      } catch {
+        throw new Error(`Outbound request refused: malformed URL (${current})`);
+      }
+    } else {
+      const check = validateOutboundUrl(current);
+      if (!check.ok || !check.parsed) throw new Error(`Outbound request refused: ${check.reason} (${current})`);
+      await assertHostAllowed(check.parsed.hostname);
+      parsed = check.parsed;
+    }
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -65,7 +110,7 @@ export async function safeFetch(url: string, init: SafeFetchInit = {}): Promise<
 
     let res: Response;
     try {
-      res = await fetch(check.parsed, {
+      res = await fetch(parsed, {
         ...init,
         redirect: 'manual',
         signal: controller.signal,
@@ -82,7 +127,7 @@ export async function safeFetch(url: string, init: SafeFetchInit = {}): Promise<
     if (res.status >= 300 && res.status < 400 && res.headers.has('location')) {
       redirects += 1;
       if (redirects > MAX_REDIRECTS) throw new Error(`Too many redirects (${current})`);
-      const next = new URL(res.headers.get('location')!, check.parsed).toString();
+      const next = new URL(res.headers.get('location')!, parsed).toString();
       logger.debug({ from: current, to: next }, 'safeFetch redirect');
       current = next;
       continue;

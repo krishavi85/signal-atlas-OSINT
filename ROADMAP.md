@@ -33,7 +33,7 @@ Legend: ✅ done · 🟡 partial (usable, gaps noted) · ⚪ scaffolded (interfa
 | Item | State | Notes |
 |---|---|---|
 | Web search connectors: RSS, Wikipedia, HN, generic-fetch | ✅ | key-free, real |
-| Web search connectors: Google CSE, Bing, Brave, SearXNG, SerpAPI | 🟡 | implemented; inactive without key → `NOT_CONFIGURED` |
+| Web search connectors: Google CSE, Bing, Brave, SearXNG, SerpAPI | 🟡 | implemented; inactive without key → `NOT_CONFIGURED`. SearXNG verified for real: ran self-hosted via Docker (`search.formats: [html, json]` enabled) — connector went `NOT_CONFIGURED` → `ONLINE` and returned 60 real hits in a live search |
 | Universal search interface + Boolean parser (§4) | ✅ | parser + AND/OR/NOT/quote/site:/-domain/date done; visual query builder (Simple/Builder toggle, round-trips through the real parser, live parsed-query preview) in Universal Search and per-investigation Search tab |
 | Query expansion engine (§5), original vs. generated kept separate | 🟡 | heuristic expansions done; AI expansion needs provider (still 🟡 on a fresh clone — no provider ships configured — but verified for real against a local Ollama + llama3.1:8b: returned real site:-scoped suggestions with rationales, ~45-50s per call on CPU) |
 | Result normalization | ✅ | per-connector `normalize()` |
