@@ -35,7 +35,7 @@ Legend: ✅ done · 🟡 partial (usable, gaps noted) · ⚪ scaffolded (interfa
 | Web search connectors: RSS, Wikipedia, HN, generic-fetch | ✅ | key-free, real |
 | Web search connectors: Google CSE, Bing, Brave, SearXNG, SerpAPI | 🟡 | implemented; inactive without key → `NOT_CONFIGURED` |
 | Universal search interface + Boolean parser (§4) | ✅ | parser + AND/OR/NOT/quote/site:/-domain/date done; visual query builder (Simple/Builder toggle, round-trips through the real parser, live parsed-query preview) in Universal Search and per-investigation Search tab |
-| Query expansion engine (§5), original vs. generated kept separate | 🟡 | heuristic expansions done; AI expansion needs provider |
+| Query expansion engine (§5), original vs. generated kept separate | 🟡 | heuristic expansions done; AI expansion needs provider (still 🟡 on a fresh clone — no provider ships configured — but verified for real against a local Ollama + llama3.1:8b: returned real site:-scoped suggestions with rationales, ~45-50s per call on CPU) |
 | Result normalization | ✅ | per-connector `normalize()` |
 | Deduplication (URL canon, content hash, near-dup simhash) (§18) | 🟡 | exact + canonical + simhash done; semantic needs embeddings |
 | Source storage + search history | ✅ | |
@@ -76,7 +76,7 @@ Legend: ✅ done · 🟡 partial (usable, gaps noted) · ⚪ scaffolded (interfa
 | Item | State |
 |---|---|
 | Provider abstraction — chat (none/ollama/anthropic/openai) + embeddings | ✅ `src/ai/chat.ts`, `src/ai/embeddings.ts`; per-call `ai_usage` accounting; budget guard (§43); honest `chatStatus()` / `embeddingStatus()` |
-| Evidence-grounded summarization + anti-hallucination (§13, §14) | ✅ numbered evidence blocks + strict citation contract + **citation validator** (`validateCitations`) that flags every factual sentence with no valid `[E<n>]`; stored in `ai_analyses` with `ungroundedStatements`; "Ask the evidence" UI |
+| Evidence-grounded summarization + anti-hallucination (§13, §14) | ✅ numbered evidence blocks + strict citation contract + **citation validator** (`validateCitations`) that flags every factual sentence with no valid `[E<n>]`; stored in `ai_analyses` with `ungroundedStatements`; "Ask the evidence" UI. Verified against a real local Ollama provider (llama3.1:8b): a 106-evidence-record investigation answered with a correctly-cited `EVIDENCE-2026-NNNNNN` id and zero ungrounded statements (~1m52s on CPU) |
 | Query expansion via AI (§5) | ✅ `expandQueriesAI` — JSON output, deduped against executed queries, **not auto-run**; "AI-suggested queries" panel in Search tab |
 | Semantic search (§23) | ✅ (Phase 3) |
 | Report generation (§28) | ✅ `generateReport` — deterministic assembly of Scope/Methodology/Coverage/Entities/Timeline/Claims/Contradictions/Source-Assessment/Evidence/Limitations from the DB + AI narrative for Exec-Summary/Key-Findings/Conclusion **when a provider is configured** (marked unavailable otherwise, never faked); Markdown / HTML / JSON export with sha256 checksum; Analyst-tab UI |
