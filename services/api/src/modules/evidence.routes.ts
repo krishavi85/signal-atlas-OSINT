@@ -1,14 +1,38 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { EVIDENCE_ID_RE } from '@osint/core';
+import { EVIDENCE_ID_RE, validateOutboundUrl } from '@osint/core';
 import { prisma } from '../db.js';
 import { currentUser } from '../auth/plugin.js';
-import { notFound } from '../lib/errors.js';
+import { badRequest, notFound } from '../lib/errors.js';
 import { assertProjectAccess } from './projects.js';
 import { audit } from './audit.js';
+import { enqueueJob } from '../jobs/runner.js';
 
 export async function evidenceRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', app.authenticate);
+
+  // Fetch a single user-provided URL into evidence (§3), optionally
+  // JS-rendered via a headless browser first. web-generic's fetch() has
+  // existed since Phase 1 but had no route calling it until now.
+  app.post('/projects/:id/evidence/fetch-url', async (req, reply) => {
+    const { id } = z.object({ id: z.string() }).parse(req.params);
+    await assertProjectAccess(req, id, 'EDITOR');
+    const u = currentUser(req);
+    const project = await prisma.project.findUniqueOrThrow({ where: { id } });
+    if (project.status !== 'ACTIVE') throw badRequest(`Project is ${project.status}`);
+
+    const { url, render } = z.object({ url: z.string().url(), render: z.boolean().default(false) }).parse(req.body ?? {});
+    const check = validateOutboundUrl(url);
+    if (!check.ok) throw badRequest(`URL refused: ${check.reason}`);
+
+    const jobId = await enqueueJob({ type: 'URL_INGEST', projectId: id, payload: { projectId: id, url, render } });
+    await audit({
+      projectId: id, actorId: u.id, actorLabel: `user:${u.email}`, action: 'EVIDENCE_ADDED',
+      targetType: 'evidence', targetId: jobId,
+      summary: `Queued fetch of user-provided URL ${url}${render ? ' (JS-rendered)' : ''}`,
+    });
+    reply.status(202).send({ jobId });
+  });
 
   // Full-text + faceted search across a project's collected evidence (§23).
   app.get('/projects/:id/evidence', async (req) => {

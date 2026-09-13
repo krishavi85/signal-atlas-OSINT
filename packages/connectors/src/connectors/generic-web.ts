@@ -12,6 +12,7 @@ import type {
   SearchParams,
 } from '../sdk/types.js';
 import { extractHtmlMeta, stripTags } from '../lib/markup.js';
+import { renderPage } from '../lib/browserFetch.js';
 
 /**
  * Generic web fetch connector — retrieves a single user-supplied URL (§3
@@ -20,6 +21,15 @@ import { extractHtmlMeta, stripTags } from '../lib/markup.js';
  * readable text + metadata. Does NOT crawl or follow links. Fetched pages are
  * cached 1h and robots.txt lookups 24h (§39) to avoid re-hitting the same
  * site on repeat fetches within an investigation.
+ *
+ * `fetch({ url, render: true })` renders the page's JS in a headless browser
+ * first (§19-adjacent: seeing content a plain fetch can't) — the browser
+ * layer replicates the same SSRF protection independently (see
+ * lib/browserFetch.ts) since Playwright makes its own network requests,
+ * bypassing ctx.safeFetch entirely. Rendering only executes the page's own
+ * JS to see its final content; it never clicks, fills forms, or logs in —
+ * automating access-controlled surfaces stays out of scope regardless of
+ * what the underlying browser can technically do (§30).
  */
 export class GenericWebConnector extends BaseConnector {
   constructor() {
@@ -70,6 +80,9 @@ export class GenericWebConnector extends BaseConnector {
         `robots.txt for ${target.host} disallows automated retrieval of ${target.pathname}. Not fetched.`,
       );
     }
+
+    if (params.render) return this.fetchRendered(params.url, ctx);
+
     const res = await this.getText(ctx, params.url, { timeoutMs: 15_000 }, 3600);
     return {
       url: params.url,
@@ -79,6 +92,37 @@ export class GenericWebConnector extends BaseConnector {
       headers: res.headers,
       fetchedAt: new Date().toISOString(),
     };
+  }
+
+  /** Same cache/rate-limit discipline as the plain-fetch path, via the headless-browser renderer instead of ctx.safeFetch. */
+  private async fetchRendered(url: string, ctx: ConnectorContext): Promise<RawDocument> {
+    const cacheKey = ctx.cache ? `${this.id}:RENDER:${url}` : null;
+    if (cacheKey) {
+      const cached = await ctx.cache!.get(cacheKey);
+      if (cached !== null) return JSON.parse(cached) as RawDocument;
+    }
+
+    await this.limiter.acquire(ctx.signal);
+    let result: RawDocument;
+    try {
+      const rendered = await renderPage(url, { userAgent: ctx.userAgent, timeoutMs: 25_000 });
+      this.limiter.onSuccess();
+      result = {
+        url,
+        status: rendered.status,
+        contentType: rendered.contentType,
+        body: rendered.html,
+        headers: rendered.headers,
+        fetchedAt: new Date().toISOString(),
+        renderedViaBrowser: true,
+      };
+    } catch (err) {
+      this.limiter.onFailure(false);
+      throw err;
+    }
+
+    if (cacheKey) await ctx.cache!.set(cacheKey, JSON.stringify(result), 3600);
+    return result;
   }
 
   override async parse(input: RawDocument | { raw: unknown }): Promise<unknown> {
@@ -100,7 +144,7 @@ export class GenericWebConnector extends BaseConnector {
         title: doc.url,
         excerpt: text ? text.slice(0, 500) : null,
         fullText: text,
-        rawMetadata: { contentType: ct, status: doc.status, registrableDomain: canon?.registrableDomain },
+        rawMetadata: { contentType: ct, status: doc.status, registrableDomain: canon?.registrableDomain, renderedViaBrowser: doc.renderedViaBrowser ?? false },
       };
     }
 
@@ -124,12 +168,13 @@ export class GenericWebConnector extends BaseConnector {
         status: doc.status,
         registrableDomain: canon?.registrableDomain,
         ogDescription: meta.description,
+        renderedViaBrowser: doc.renderedViaBrowser ?? false,
       },
     };
   }
 
   async healthCheck(): Promise<ConnectorHealth> {
-    return this.health('ONLINE', null, 'Ready to fetch user-provided URLs (SSRF-guarded, robots-aware, cached 1h).');
+    return this.health('ONLINE', null, 'Ready to fetch user-provided URLs (SSRF-guarded, robots-aware, cached 1h; render:true renders JS via headless Chromium).');
   }
 }
 

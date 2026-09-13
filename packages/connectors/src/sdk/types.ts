@@ -78,6 +78,8 @@ export interface RawHit {
 
 export interface FetchParams {
   url: string;
+  /** render the page's JS in a headless browser before extracting content (currently web-generic only) */
+  render?: boolean;
 }
 
 export interface RawDocument {
@@ -87,6 +89,8 @@ export interface RawDocument {
   body: string;
   headers: Record<string, string>;
   fetchedAt: string;
+  /** true if `body` is the post-JS-execution DOM from a headless-browser render, not a raw HTTP response */
+  renderedViaBrowser?: boolean;
 }
 
 export interface SearchOutcome {

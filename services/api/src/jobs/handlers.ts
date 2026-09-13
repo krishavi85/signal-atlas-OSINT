@@ -2,6 +2,7 @@ import { prisma } from '../db.js';
 import { checkAllConnectorHealth } from '../connectors/health.js';
 import { runResearchRun } from '../orchestrator/pipeline.js';
 import { ingestDocument } from '../orchestrator/DocumentIngest.js';
+import { ingestUrl } from '../orchestrator/UrlIngest.js';
 import { backfillEmbeddings } from '../orchestrator/SemanticIndex.js';
 import { generateReport } from '../orchestrator/AIResearchEngine.js';
 import { collectMediaForProject, processProjectMedia } from '../orchestrator/MediaEngine.js';
@@ -60,6 +61,15 @@ export function registerAllJobHandlers(): void {
     if (!documentId) throw new Error('DOCUMENT_INGEST payload missing documentId');
     const result = await ingestDocument(documentId);
     await ctx.reportProgress({ evidenceId: result.evidenceId, entitiesExtracted: result.entities });
+    return { status: 'COMPLETED', result };
+  });
+
+  registerJobHandler('URL_INGEST', async (ctx) => {
+    const projectId = String(ctx.payload.projectId ?? '');
+    const url = String(ctx.payload.url ?? '');
+    if (!projectId || !url) throw new Error('URL_INGEST payload missing projectId or url');
+    const result = await ingestUrl(projectId, url, { render: Boolean(ctx.payload.render) });
+    await ctx.reportProgress({ evidenceId: result.evidenceId, entitiesExtracted: result.entities, reusedExisting: result.reusedExisting });
     return { status: 'COMPLETED', result };
   });
 

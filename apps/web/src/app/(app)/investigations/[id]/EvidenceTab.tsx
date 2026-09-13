@@ -58,6 +58,7 @@ export function EvidenceTab({ projectId, canEdit }: { projectId: string; canEdit
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
       <div className="space-y-3">
+        {canEdit && <FetchUrlForm projectId={projectId} onQueued={reload} />}
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex gap-1 rounded-md bg-ink-950 p-1 text-xs">
             {(['keyword', 'semantic'] as const).map((m) => (
@@ -142,6 +143,54 @@ export function EvidenceTab({ projectId, canEdit }: { projectId: string; canEdit
         )}
       </aside>
     </div>
+  );
+}
+
+function FetchUrlForm({ projectId, onQueued }: { projectId: string; onQueued: () => void }) {
+  const [url, setUrl] = useState('');
+  const [render, setRender] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setStatus(null);
+    try {
+      await api(`/projects/${projectId}/evidence/fetch-url`, { method: 'POST', body: JSON.stringify({ url, render }) });
+      setStatus(render ? 'Queued — rendering JS via headless Chromium can take a bit longer.' : 'Queued.');
+      setUrl('');
+      setTimeout(onQueued, 3000);
+      setTimeout(onQueued, 9000);
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : 'Failed to queue fetch');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="card space-y-2 p-3 text-sm">
+      <p className="text-xs font-semibold text-slate-300">Fetch a URL into evidence</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          className="input min-w-[16rem] flex-1"
+          type="url"
+          required
+          placeholder="https://example.com/article"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+        />
+        <label className="flex items-center gap-1.5 text-xs text-slate-400">
+          <input type="checkbox" checked={render} onChange={(e) => setRender(e.target.checked)} />
+          render JS (headless browser)
+        </label>
+        <button className="btn-primary py-1.5 text-xs" disabled={busy || !url}>
+          {busy ? 'Queuing…' : 'Fetch'}
+        </button>
+      </div>
+      {status && <p className="text-[11px] text-slate-500">{status}</p>}
+    </form>
   );
 }
 

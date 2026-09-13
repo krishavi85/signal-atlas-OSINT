@@ -41,6 +41,7 @@ apps/web              Next.js dashboard (App Router, Tailwind, client-rendered).
 
 ```bash
 npm install
+npx playwright install chromium         # for JS-rendered fetch (generic-web's render:true)
 cp .env.example .env      # fill AUTH_JWT_SECRET + CREDENTIAL_ENC_KEY (generators in README)
 npm run db:migrate -w @osint/api
 npm run db:seed   -w @osint/api        # prints an admin password
@@ -51,6 +52,11 @@ npm test                                # core + connector-contract + api unit
 Env blockers in the current deployment: no PostgreSQL (SQLite), no Redis
 (in-process jobs), no AI keys (heuristics only), no search-provider keys
 (RSS/Wikipedia/HN/web-fetch active). All degrade honestly.
+
+`render:true` on the generic-web connector's fetch needs Chromium on disk
+(`npx playwright install chromium`, ~300MB, one-time) — CI doesn't install it
+since nothing in typecheck/test/build launches a real browser, but a
+deployment that wants JS-rendered fetches to work needs this step too.
 
 ## Adding a connector
 

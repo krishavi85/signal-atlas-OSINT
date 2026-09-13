@@ -80,6 +80,7 @@ export async function jobRoutes(app: FastifyInstance): Promise<void> {
 const JOB_TYPE_LABEL: Record<string, string> = {
   RESEARCH_RUN: 'a research run (search → normalize → dedupe → entities/claims/timeline)',
   DOCUMENT_INGEST: 'document ingestion (text/metadata extraction from an uploaded file)',
+  URL_INGEST: 'fetching a user-provided URL (optionally JS-rendered) into evidence',
   MEDIA_PROCESS: 'media processing (fetch, metadata, perceptual hash, optional vision OCR)',
   MONITORING_RUN: 'a scheduled monitoring run',
   REPORT_GENERATE: 'report generation',
