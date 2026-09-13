@@ -1,5 +1,5 @@
 import { loadEnv } from '../env.js';
-import { safeFetch } from '../lib/safeFetch.js';
+import { providerFetch } from '../lib/providerFetch.js';
 import { prisma } from '../db.js';
 import { logger } from '../logger.js';
 
@@ -61,7 +61,7 @@ export function getEmbeddingProvider(): EmbeddingProvider | null {
       async embed(texts) {
         const out: number[][] = [];
         for (const input of texts) {
-          const res = await safeFetch(`${env.OLLAMA_BASE_URL}/api/embeddings`, {
+          const res = await providerFetch(`${env.OLLAMA_BASE_URL}/api/embeddings`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ model, prompt: input }),
@@ -82,7 +82,7 @@ export function getEmbeddingProvider(): EmbeddingProvider | null {
     model,
     dim: null,
     async embed(texts) {
-      const res = await safeFetch('https://api.openai.com/v1/embeddings', {
+      const res = await providerFetch('https://api.openai.com/v1/embeddings', {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${env.OPENAI_API_KEY}` },
         body: JSON.stringify({ model, input: texts }),

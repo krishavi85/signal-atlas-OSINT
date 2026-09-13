@@ -59,14 +59,32 @@ export type Env = z.infer<typeof EnvSchema> & {
 
 let cached: Env | null = null;
 
+/**
+ * `.env.example` ships every optional key as `KEY=` (empty) so operators can
+ * see what exists to fill in. An empty string is not `undefined` though, so
+ * left as-is it silently defeats every `env.X ?? fallback` in the codebase
+ * (a real bug this surfaced: AI_MODEL_EXTRACT="" made the extract role
+ * resolve to an empty model string instead of falling back to
+ * AI_MODEL_SYNTH). Treat blank values as unset everywhere, including in
+ * `raw` so connector config reads the same way.
+ */
+function withEmptyAsUnset(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const out: NodeJS.ProcessEnv = { ...env };
+  for (const key of Object.keys(out)) {
+    if (out[key] === '') delete out[key];
+  }
+  return out;
+}
+
 export function loadEnv(): Env {
   if (cached) return cached;
-  const parsed = EnvSchema.safeParse(process.env);
+  const cleaned = withEmptyAsUnset(process.env);
+  const parsed = EnvSchema.safeParse(cleaned);
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `  - ${i.path.join('.')}: ${i.message}`).join('\n');
     throw new Error(`Invalid environment configuration:\n${issues}\n\nSee .env.example.`);
   }
-  cached = { ...parsed.data, raw: process.env };
+  cached = { ...parsed.data, raw: cleaned };
   return cached;
 }
 

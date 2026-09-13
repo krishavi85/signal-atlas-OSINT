@@ -1,7 +1,7 @@
 import { loadEnv } from '../env.js';
 import { prisma } from '../db.js';
 import { logger } from '../logger.js';
-import { safeFetch } from '../lib/safeFetch.js';
+import { providerFetch } from '../lib/providerFetch.js';
 
 /**
  * Chat-model abstraction (§42) for the AI research analyst (§13).
@@ -147,7 +147,7 @@ export async function chat(req: ChatRequest, meta: { projectId?: string; operati
 }
 
 async function callOllama(baseUrl: string, model: string, req: ChatRequest, temperature: number, maxTokens: number): Promise<ChatResult> {
-  const res = await safeFetch(`${baseUrl}/api/chat`, {
+  const res = await providerFetch(`${baseUrl}/api/chat`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
@@ -164,7 +164,12 @@ async function callOllama(baseUrl: string, model: string, req: ChatRequest, temp
         })),
       ],
     }),
-    timeoutMs: 180_000,
+    // Unlike the hosted providers below, this is a local, CPU-bound model the
+    // operator chose to run themselves — a large evidence-grounded prompt can
+    // legitimately take several minutes to generate on CPU. 180s cut off a
+    // real (non-hung) request during testing; there's no cost/quota reason to
+    // enforce a short deadline against infrastructure the operator controls.
+    timeoutMs: 600_000,
   });
   if (!res.ok) throw new Error(`Ollama chat HTTP ${res.status}: ${await res.text()}`);
   const json = (await res.json()) as { message?: { content: string }; prompt_eval_count?: number; eval_count?: number };
@@ -178,7 +183,7 @@ async function callOllama(baseUrl: string, model: string, req: ChatRequest, temp
 }
 
 async function callAnthropic(apiKey: string, model: string, req: ChatRequest, temperature: number, maxTokens: number): Promise<ChatResult> {
-  const res = await safeFetch('https://api.anthropic.com/v1/messages', {
+  const res = await providerFetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
@@ -214,7 +219,7 @@ async function callAnthropic(apiKey: string, model: string, req: ChatRequest, te
 }
 
 async function callOpenAI(apiKey: string, model: string, req: ChatRequest, temperature: number, maxTokens: number): Promise<ChatResult> {
-  const res = await safeFetch('https://api.openai.com/v1/chat/completions', {
+  const res = await providerFetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({

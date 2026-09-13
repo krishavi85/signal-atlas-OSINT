@@ -1,5 +1,5 @@
 import { loadEnv } from '../env.js';
-import { safeFetch } from '../lib/safeFetch.js';
+import { providerFetch } from '../lib/providerFetch.js';
 
 /**
  * Speech-to-text (§19 video/audio transcription). Deliberately independent of
@@ -46,7 +46,7 @@ export async function transcribeAudio(audio: Buffer, filename: string): Promise<
   form.append('model', 'whisper-1');
   form.append('response_format', 'verbose_json');
 
-  const res = await safeFetch('https://api.openai.com/v1/audio/transcriptions', {
+  const res = await providerFetch('https://api.openai.com/v1/audio/transcriptions', {
     method: 'POST',
     headers: { authorization: `Bearer ${env.OPENAI_API_KEY}` },
     body: form,

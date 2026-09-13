@@ -1,6 +1,13 @@
 'use client';
 
-const BASE = '/api/v1';
+// Normally calls go through Next's rewrite proxy (single origin in the
+// browser). Next's dev-server proxy for rewrites() times out well before a
+// CPU-bound local LLM (e.g. Ollama) can finish a longer generation —
+// observed cutting off around 20-25s regardless of the backend's own
+// timeouts. NEXT_PUBLIC_API_ORIGIN lets local dev point straight at the API
+// (already CORS-enabled for exactly this) to bypass that proxy; unset in
+// any deployed environment, this is a no-op and behavior is unchanged.
+const BASE = `${process.env.NEXT_PUBLIC_API_ORIGIN ?? ''}/api/v1`;
 
 export interface ApiError {
   code: string;
