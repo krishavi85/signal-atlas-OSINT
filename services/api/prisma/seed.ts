@@ -1,10 +1,17 @@
-import { randomBytes } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import { buildDefaultRegistry } from '@osint/connectors';
-import { hashPassword } from '../src/lib/password.js';
+import { ensureLocalUser } from '../src/auth/localUser.js';
 
 const prisma = new PrismaClient();
 
+/**
+ * Single-user local-first: there's no login, so there's nothing to seed a
+ * password for. The API auto-provisions its one local account on startup
+ * (auth/localUser.ts) — this reuses the exact same function rather than a
+ * second, parallel "create an admin" path, so a fresh clone never ends up
+ * with two different accounts depending on whether `db:seed` ran before or
+ * after the API's first boot.
+ */
 async function main(): Promise<void> {
   // 1. connectors registry -> DB rows
   const registry = buildDefaultRegistry();
@@ -18,33 +25,20 @@ async function main(): Promise<void> {
   }
   console.log(`✓ ${registry.ids().length} connectors registered`);
 
-  // 2. admin user
-  const email = process.env.SEED_ADMIN_EMAIL ?? 'admin@osint.local';
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (!existing) {
-    const password = process.env.SEED_ADMIN_PASSWORD ?? randomBytes(9).toString('base64url');
-    await prisma.user.create({
-      data: { email, displayName: 'Administrator', passwordHash: await hashPassword(password), role: 'ADMIN' },
-    });
-    console.log('\n  Admin account created:');
-    console.log(`    email:    ${email}`);
-    console.log(`    password: ${password}`);
-    console.log('  (set SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD to override)\n');
-  } else {
-    console.log(`✓ admin user ${email} already exists`);
-  }
+  // 2. the one local account
+  const localUser = await ensureLocalUser();
+  console.log(`✓ local account: ${localUser.email}`);
 
-  // 3. demo project owned by admin (only if none exist)
-  const admin = await prisma.user.findUniqueOrThrow({ where: { email } });
+  // 3. demo project owned by the local account (only if none exist)
   if ((await prisma.project.count()) === 0) {
     await prisma.project.create({
       data: {
         name: 'Sample Investigation',
         slug: 'sample-investigation',
         objective: 'Explore the platform with the key-free connectors (Wikipedia, Hacker News, RSS, web fetch).',
-        ownerId: admin.id,
+        ownerId: localUser.id,
         defaultLanguages: 'en',
-        members: { create: { userId: admin.id, role: 'OWNER' } },
+        members: { create: { userId: localUser.id, role: 'OWNER' } },
       },
     });
     console.log('✓ created "Sample Investigation" project');

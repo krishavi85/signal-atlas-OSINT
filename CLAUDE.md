@@ -42,12 +42,16 @@ apps/web              Next.js dashboard (App Router, Tailwind, client-rendered).
 ```bash
 npm install
 npx playwright install chromium         # for JS-rendered fetch (generic-web's render:true)
-cp .env.example .env      # fill AUTH_JWT_SECRET + CREDENTIAL_ENC_KEY (generators in README)
+cp .env.example .env      # fill CREDENTIAL_ENC_KEY (generator in README)
 npm run db:migrate -w @osint/api
-npm run db:seed   -w @osint/api        # prints an admin password
-npm run dev                             # api :4000, web :3000
+npm run dev                             # api :4000, web :3000 — no login; auto-provisions one local account
 npm test                                # core + connector-contract + api unit
 ```
+
+Single-user local-first (no login, no tokens — see `services/api/src/auth/`):
+every request is auto-authenticated as one local account, created on first
+boot. `npm run db:seed` is optional now (only useful for the sample project
+it also creates); nothing to log in with, since there's no login screen.
 
 Env blockers in the current deployment: no PostgreSQL (SQLite), no Redis
 (in-process jobs), no AI keys (heuristics only), no search-provider keys

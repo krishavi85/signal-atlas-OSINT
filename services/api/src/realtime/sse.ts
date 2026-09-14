@@ -1,28 +1,20 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { verifyAccessToken } from '../auth/tokens.js';
 import { prisma } from '../db.js';
 import { jobBus, type JobEvent } from '../jobs/events.js';
-import { unauthorized } from '../lib/errors.js';
+import { notFound } from '../lib/errors.js';
 
 /**
  * Server-Sent Events stream for realtime job / research progress (§37, §50).
- * Auth via `?token=` query param (EventSource can't set headers).
+ * Single-user local-first: no token needed (EventSource can't set headers
+ * anyway, which is what the token-in-query-param used to work around) — just
+ * confirm the project exists, same as assertProjectAccess elsewhere.
  */
 export async function sseRoutes(app: FastifyInstance): Promise<void> {
   app.get('/projects/:id/stream', async (req, reply) => {
     const { id } = z.object({ id: z.string() }).parse(req.params);
-    const { token } = z.object({ token: z.string() }).parse(req.query);
-
-    let userId: string;
-    try {
-      userId = (await verifyAccessToken(token)).sub;
-    } catch {
-      throw unauthorized('Invalid stream token');
-    }
-    const member = await prisma.projectMember.findUnique({ where: { projectId_userId: { projectId: id, userId } } });
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!member && user?.role !== 'ADMIN') throw unauthorized('No access to this project stream');
+    const project = await prisma.project.findUnique({ where: { id }, select: { id: true } });
+    if (!project) throw notFound('Project not found');
 
     reply.raw.writeHead(200, {
       'content-type': 'text/event-stream',

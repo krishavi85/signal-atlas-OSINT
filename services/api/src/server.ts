@@ -9,7 +9,7 @@ import { logger } from './logger.js';
 import { prisma } from './db.js';
 import { registerErrorHandler } from './lib/errors.js';
 import { authPlugin } from './auth/plugin.js';
-import { authRoutes } from './auth/routes.js';
+import { ensureLocalUser } from './auth/localUser.js';
 import { projectRoutes } from './modules/projects.js';
 import { connectorRoutes } from './modules/connectors.routes.js';
 import { searchRoutes } from './modules/search.routes.js';
@@ -29,8 +29,29 @@ import { sseRoutes } from './realtime/sse.js';
 import { registry } from './connectors/runtime.js';
 import { transcriptionCapable } from './orchestrator/MediaEngine.js';
 
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
+
+/**
+ * Single-user local-first (no login, every request auto-authenticated) is
+ * only a safe default because nothing outside this machine can reach the
+ * API. If API_HOST is ever pointed at a non-loopback address there is
+ * genuinely no gate anymore, so refuse to start rather than silently run
+ * wide open — this is the one guard rail the "remove login entirely" choice
+ * still needs.
+ */
+function assertLocalOnly(env: { API_HOST: string }): void {
+  if (!LOOPBACK_HOSTS.has(env.API_HOST.toLowerCase())) {
+    throw new Error(
+      `API_HOST=${env.API_HOST} is not a loopback address. This build has no login (single-user ` +
+        'local-first) — binding beyond 127.0.0.1/localhost would expose every route with zero auth. ' +
+        'Set API_HOST=127.0.0.1, or put a real auth layer in front before exposing this beyond your own machine.',
+    );
+  }
+}
+
 export async function buildServer(): Promise<FastifyInstance> {
   const env = loadEnv();
+  assertLocalOnly(env);
   const app = Fastify({
     loggerInstance: logger as unknown as FastifyBaseLogger,
     trustProxy: true,
@@ -113,7 +134,14 @@ export async function buildServer(): Promise<FastifyInstance> {
       // stay for infra-standard health checks that expect no prefix).
       api.get('/readyz', async (_req, reply) => getReadyz(reply));
       api.get('/manifest', getManifest);
-      await api.register(authRoutes);
+      // Single-user local-first: no login, so this always resolves to the one
+      // local account rather than 401ing (see auth/plugin.ts, auth/localUser.ts).
+      api.get('/auth/me', async () => {
+        const user = await ensureLocalUser();
+        const full = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+        const projectCount = await prisma.project.count();
+        return { id: full.id, email: full.email, displayName: full.displayName, role: full.role, projectCount };
+      });
       await api.register(projectRoutes);
       await api.register(connectorRoutes);
       await api.register(searchRoutes);

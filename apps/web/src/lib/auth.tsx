@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { api, tokenStore } from './api';
+import { api } from './api';
 
 export interface Me {
   id: string;
@@ -14,24 +14,23 @@ export interface Me {
 interface AuthState {
   me: Me | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, displayName: string) => Promise<void>;
-  logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
 
+/**
+ * Single-user local-first: no login screen, no tokens. `/auth/me` always
+ * resolves — every request is auto-authenticated as the one local account
+ * (see services/api/src/auth/). This still fetches it (rather than a static
+ * placeholder) so the header shows the real account and this stays a real
+ * check, not a fabricated "logged in" state.
+ */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [me, setMe] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refreshMe = useCallback(async () => {
-    if (!tokenStore.access && !tokenStore.refresh) {
-      setMe(null);
-      setLoading(false);
-      return;
-    }
     try {
       setMe(await api<Me>('/auth/me'));
     } catch {
@@ -45,40 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void refreshMe();
   }, [refreshMe]);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const data = await api<{ accessToken: string; refreshToken: string; user: Me }>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    });
-    tokenStore.set(data.accessToken, data.refreshToken);
-    setMe(data.user);
-  }, []);
-
-  const register = useCallback(async (email: string, password: string, displayName: string) => {
-    const data = await api<{ accessToken: string; refreshToken: string; user: Me }>('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify({ email, password, displayName }),
-    });
-    tokenStore.set(data.accessToken, data.refreshToken);
-    setMe(data.user);
-  }, []);
-
-  const logout = useCallback(async () => {
-    try {
-      if (tokenStore.refresh) {
-        await api('/auth/logout', { method: 'POST', body: JSON.stringify({ refreshToken: tokenStore.refresh }), retryOnAuth: false });
-      }
-    } catch {
-      /* ignore */
-    }
-    tokenStore.clear();
-    setMe(null);
-  }, []);
-
-  const value = useMemo(
-    () => ({ me, loading, login, register, logout, refreshMe }),
-    [me, loading, login, register, logout, refreshMe],
-  );
+  const value = useMemo(() => ({ me, loading, refreshMe }), [me, loading, refreshMe]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

@@ -9,7 +9,6 @@ const { encryptSecret, decryptSecret, encryptJson, decryptJson } = await import(
 const { hashPassword, verifyPassword } = await import('./lib/password.js');
 const { planQueries } = await import('./orchestrator/QueryPlanner.js');
 const { scoreEntityMatch, jaroWinkler } = await import('./orchestrator/EntityResolver.js');
-const { signAccessToken, verifyAccessToken, generateRefreshToken, hashRefreshToken } = await import('./auth/tokens.js');
 const { buildEvidenceContext, validateCitations } = await import('./ai/grounding.js');
 const { parseJsonLoose } = await import('./ai/chat.js');
 const { perceptualHash, hammingHex, isDuplicateImage, extractImageMeta } = await import('./lib/mediaExtract.js');
@@ -37,16 +36,6 @@ test('password: scrypt hash verifies and rejects wrong password', async () => {
   assert.equal(await verifyPassword('correct horse battery staple', h), true);
   assert.equal(await verifyPassword('wrong', h), false);
   assert.equal(await verifyPassword('x', 'not-a-hash'), false);
-});
-
-test('tokens: access token signs/verifies; refresh token hashes stably', async () => {
-  const t = await signAccessToken({ sub: 'u1', email: 'a@b.c', role: 'ADMIN' });
-  const claims = await verifyAccessToken(t);
-  assert.equal(claims.sub, 'u1');
-  assert.equal(claims.role, 'ADMIN');
-  await assert.rejects(() => verifyAccessToken(t + 'x'));
-  const { token, hash } = generateRefreshToken();
-  assert.equal(hashRefreshToken(token), hash);
 });
 
 test('QueryPlanner: original first, depth-limited, expansions tagged', () => {

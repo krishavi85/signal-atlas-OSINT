@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { api, tokenStore } from '@/lib/api';
+import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 import { Badge, EmptyState, ErrorState, Spinner } from '@/components/ui';
 
@@ -30,7 +30,6 @@ export function DocumentsTab({ projectId, canEdit }: { projectId: string; canEdi
       fd.append('file', file);
       const res = await fetch(`/api/v1/projects/${projectId}/documents`, {
         method: 'POST',
-        headers: { authorization: `Bearer ${tokenStore.access}` },
         body: fd,
       });
       if (!res.ok) {

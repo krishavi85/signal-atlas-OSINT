@@ -3,6 +3,7 @@ import { logger } from './logger.js';
 import { disconnectDb, prisma } from './db.js';
 import { buildServer } from './server.js';
 import { ensureConnectorsSeeded } from './connectors/runtime.js';
+import { ensureLocalUser } from './auth/localUser.js';
 import { checkAllConnectorHealth } from './connectors/health.js';
 import { registerAllJobHandlers } from './jobs/handlers.js';
 import { startJobRunner, stopJobRunner, enqueueJob } from './jobs/runner.js';
@@ -13,6 +14,8 @@ async function main(): Promise<void> {
   const env = loadEnv();
 
   await ensureConnectorsSeeded();
+  const localUser = await ensureLocalUser();
+  logger.info(`Single-user local-first: every request is ${localUser.email} (no login)`);
   registerAllJobHandlers();
   startJobRunner();
 

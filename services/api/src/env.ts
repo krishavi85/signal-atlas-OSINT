@@ -25,9 +25,8 @@ const EnvSchema = z.object({
 
   DATABASE_URL: z.string().min(1),
 
-  AUTH_JWT_SECRET: z.string().min(32, 'AUTH_JWT_SECRET must be >= 32 chars'),
-  AUTH_ACCESS_TTL: z.coerce.number().int().positive().default(900),
-  AUTH_REFRESH_TTL: z.coerce.number().int().positive().default(60 * 60 * 24 * 30),
+  // No AUTH_JWT_SECRET / TTLs — single-user local-first has no login, so
+  // there are no tokens to sign (see auth/plugin.ts, auth/localUser.ts).
   CREDENTIAL_ENC_KEY: z.string().min(32, 'CREDENTIAL_ENC_KEY must be >= 32 chars (base64url of 32 bytes)'),
 
   STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),

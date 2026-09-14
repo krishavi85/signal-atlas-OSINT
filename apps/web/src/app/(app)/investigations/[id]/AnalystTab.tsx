@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { api, tokenStore } from '@/lib/api';
+import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 import { Badge, EmptyState, ErrorState, Spinner } from '@/components/ui';
 
@@ -297,7 +297,7 @@ function ExportSection({ projectId }: { projectId: string }) {
 }
 
 async function downloadWithAuth(url: string, filename: string) {
-  const res = await fetch(url, { headers: { authorization: `Bearer ${tokenStore.access}` } });
+  const res = await fetch(url);
   const blob = await res.blob();
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);

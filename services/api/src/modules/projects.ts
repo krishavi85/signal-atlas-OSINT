@@ -2,29 +2,28 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { currentUser } from '../auth/plugin.js';
-import { badRequest, forbidden, notFound } from '../lib/errors.js';
+import { notFound } from '../lib/errors.js';
 import { audit } from './audit.js';
 
 type ProjectRole = 'OWNER' | 'EDITOR' | 'VIEWER';
-const RANK: Record<ProjectRole, number> = { VIEWER: 1, EDITOR: 2, OWNER: 3 };
 
+/**
+ * Single-user local-first: one account, full access to every project,
+ * always — project-level OWNER/EDITOR/VIEWER roles existed for sharing an
+ * investigation with other people, which doesn't apply here. Kept as a
+ * function (rather than removing every call site) purely so this is the
+ * only place that had to change; every route still calls
+ * assertProjectAccess(req, id[, minRole]) exactly as before, `minRole` is
+ * now unused. Still 404s for a genuinely nonexistent project id.
+ */
 export async function assertProjectAccess(
   req: FastifyRequest,
   projectId: string,
-  minRole: ProjectRole = 'VIEWER',
+  _minRole: ProjectRole = 'VIEWER',
 ): Promise<{ role: ProjectRole }> {
-  const u = currentUser(req);
-  const member = await prisma.projectMember.findUnique({
-    where: { projectId_userId: { projectId, userId: u.id } },
-  });
-  if (!member) {
-    // admins can read any project
-    if (u.role === 'ADMIN' && minRole === 'VIEWER') return { role: 'VIEWER' };
-    throw notFound('Project not found');
-  }
-  const role = member.role as ProjectRole;
-  if (RANK[role] < RANK[minRole]) throw forbidden(`Requires ${minRole} on this project`);
-  return { role };
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
+  if (!project) throw notFound('Project not found');
+  return { role: 'OWNER' };
 }
 
 /**
@@ -167,41 +166,6 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       targetType: 'project', targetId: id, summary: `Updated project "${project.name}"`, metadata: { changed: Object.keys(data) },
     });
     return project;
-  });
-
-  // Membership (OWNER only)
-  const MemberInput = z.object({ email: z.string().email(), role: z.enum(['EDITOR', 'VIEWER']) });
-  app.post('/projects/:id/members', async (req, reply) => {
-    const { id } = z.object({ id: z.string() }).parse(req.params);
-    await assertProjectAccess(req, id, 'OWNER');
-    const u = currentUser(req);
-    const input = MemberInput.parse(req.body);
-    const target = await prisma.user.findUnique({ where: { email: input.email.toLowerCase() } });
-    if (!target) throw badRequest('No user with that email has registered');
-    const member = await prisma.projectMember.upsert({
-      where: { projectId_userId: { projectId: id, userId: target.id } },
-      create: { projectId: id, userId: target.id, role: input.role },
-      update: { role: input.role },
-    });
-    await audit({
-      projectId: id, actorId: u.id, actorLabel: `user:${u.email}`, action: 'MEMBER_ADDED',
-      targetType: 'user', targetId: target.id, summary: `Added ${input.email} as ${input.role}`,
-    });
-    reply.status(201).send(member);
-  });
-
-  app.delete('/projects/:id/members/:userId', async (req, reply) => {
-    const { id, userId } = z.object({ id: z.string(), userId: z.string() }).parse(req.params);
-    await assertProjectAccess(req, id, 'OWNER');
-    const u = currentUser(req);
-    const project = await prisma.project.findUniqueOrThrow({ where: { id } });
-    if (project.ownerId === userId) throw badRequest('Cannot remove the project owner');
-    await prisma.projectMember.deleteMany({ where: { projectId: id, userId } });
-    await audit({
-      projectId: id, actorId: u.id, actorLabel: `user:${u.email}`, action: 'MEMBER_REMOVED',
-      targetType: 'user', targetId: userId, summary: `Removed member ${userId}`,
-    });
-    reply.status(204).send();
   });
 
   // Audit trail (§29)

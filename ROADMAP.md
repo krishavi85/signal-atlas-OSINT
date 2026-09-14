@@ -16,8 +16,8 @@ Legend: ✅ done · 🟡 partial (usable, gaps noted) · ⚪ scaffolded (interfa
 | Monorepo + TS build | ✅ | npm workspaces, project refs |
 | Prisma schema (all 21 tables of §36) | ✅ | SQLite; Postgres-portable |
 | Migrations + seed | ✅ | `npm run db:migrate && npm run db:seed` |
-| Auth (register/login/refresh/logout, Argon2id, JWT) | ✅ | |
-| Project CRUD + RBAC + pause/resume | ✅ | CRUD, OWNER/EDITOR/VIEWER, membership API, pause/resume all done |
+| Auth — single-user local-first (no login, no tokens) | ✅ | Deliberately replaced the earlier register/login/refresh JWT+Argon2id auth: this is a single-operator local tool, not a multi-tenant service. Every request auto-authenticates as one local account, auto-provisioned on first boot (`services/api/src/auth/localUser.ts`). Server refuses to start if `API_HOST` is ever set beyond `127.0.0.1`/`localhost` (`assertLocalOnly()` in `server.ts`) — the one guard rail this model needs, since there's no gate at all beyond that. |
+| Project CRUD + pause/resume | ✅ | CRUD, pause/resume. Project-level OWNER/EDITOR/VIEWER RBAC and membership APIs were removed with the auth model above — one account, full access to every project, always (see `assertProjectAccess` in `services/api/src/modules/projects.ts`) |
 | Connector SDK (`search/fetch/parse/normalize/healthCheck/rateLimitStatus/capabilities`) | ✅ | `packages/connectors/src/sdk` |
 | Connector registry + capability registry (§31) | ✅ | |
 | Connector health system (§32) | ✅ | health probe + storage + per-connector latency-history sparkline/state-strip in the Connectors UI |

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { api, tokenStore } from '@/lib/api';
+import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 import { Badge, EmptyState, ErrorState, Spinner } from '@/components/ui';
 
@@ -63,7 +63,7 @@ export function MediaTab({ projectId, canEdit }: { projectId: string; canEdit: b
   async function upload(file: File) {
     const fd = new FormData();
     fd.append('file', file);
-    await fetch(`/api/v1/projects/${projectId}/media`, { method: 'POST', headers: { authorization: `Bearer ${tokenStore.access}` }, body: fd });
+    await fetch(`/api/v1/projects/${projectId}/media`, { method: 'POST', body: fd });
     setTimeout(() => void reload(), 3000);
     if (fileRef.current) fileRef.current.value = '';
   }
@@ -193,7 +193,7 @@ function MediaThumb({ media }: { media: { id: string; sourceUrl: string | null }
   useEffect(() => {
     let url: string | null = null;
     let alive = true;
-    fetch(`/api/v1/media/${media.id}/file`, { headers: { authorization: `Bearer ${tokenStore.access}` } })
+    fetch(`/api/v1/media/${media.id}/file`)
       .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
       .then((b) => {
         if (!alive) return;

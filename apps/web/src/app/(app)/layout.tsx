@@ -1,11 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { Spinner } from '@/components/ui';
-import { IconFolder, IconHome, IconLogout, IconPlug, IconSearch, IconSettings, IconZap } from '@/components/icons';
+import { IconFolder, IconHome, IconPlug, IconSearch, IconSettings, IconZap } from '@/components/icons';
 
 const NAV = [
   { href: '/', label: 'Home', icon: IconHome },
@@ -42,14 +41,8 @@ function initials(name: string): string {
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { me, loading, logout } = useAuth();
-  const router = useRouter();
+  const { me, loading } = useAuth();
   const pathname = usePathname();
-  const [menuOpen, setMenuOpen] = useState(false);
-
-  useEffect(() => {
-    if (!loading && !me) router.replace('/login');
-  }, [me, loading, router]);
 
   if (loading) {
     return (
@@ -86,33 +79,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               );
             })}
           </nav>
-          <div className="relative ml-2 shrink-0">
-            <button
-              onClick={() => setMenuOpen((v) => !v)}
-              className="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2 text-xs text-slate-400 transition-colors hover:bg-ink-850"
-            >
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ink-750 text-[10px] font-semibold text-slate-300 ring-1 ring-ink-600">
-                {initials(me.displayName) || '?'}
-              </span>
-              <span className="hidden sm:inline">
-                {me.displayName}
-                {me.role === 'ADMIN' && <span className="ml-1 text-accent">· admin</span>}
-              </span>
-            </button>
-            {menuOpen && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-                <div className="animate-in absolute right-0 top-10 z-20 w-44 rounded-lg border border-ink-750 bg-ink-900 p-1 shadow-popover">
-                  <button
-                    onClick={() => logout().then(() => router.replace('/login'))}
-                    className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs text-slate-300 hover:bg-ink-800"
-                  >
-                    <IconLogout className="h-3.5 w-3.5 text-slate-500" />
-                    Sign out
-                  </button>
-                </div>
-              </>
-            )}
+          <div className="ml-2 flex shrink-0 items-center gap-2 rounded-lg py-1 pl-1 pr-2 text-xs text-slate-400">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ink-750 text-[10px] font-semibold text-slate-300 ring-1 ring-ink-600">
+              {initials(me.displayName) || '?'}
+            </span>
+            <span className="hidden sm:inline">
+              {me.displayName}
+              {me.role === 'ADMIN' && <span className="ml-1 text-accent">· admin</span>}
+            </span>
           </div>
         </div>
       </header>
