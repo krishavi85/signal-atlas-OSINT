@@ -21,6 +21,7 @@ export type JobType =
   | 'DOCUMENT_INGEST'
   | 'URL_INGEST'
   | 'MEDIA_PROCESS'
+  | 'IDENTITY_SCAN'
   | 'MONITORING_RUN'
   | 'REPORT_GENERATE'
   | 'AI_ANALYSIS'

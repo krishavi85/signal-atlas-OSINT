@@ -85,6 +85,7 @@ model Project {
   timelineEvents TimelineEvent[]
   monitoringJobs MonitoringJob[]
   media          MediaAsset[]
+  identityScans  IdentityScan[]
   notes          Note[]
   reports        Report[]
   jobs           Job[]
@@ -618,6 +619,49 @@ model MediaAsset {
   @@index([sha256])
   @@index([perceptualHash])
   @@map("media")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Identity / username enumeration (WhatsMyName-style existence checks)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model IdentityScan {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  username    String
+  status      String   @default("QUEUED") // QUEUED | RUNNING | COMPLETED | FAILED
+  jobId       String?
+  totalChecked  Int    @default(0)
+  foundCount    Int    @default(0)
+  datasetSource String? // dataset URL/version actually used for this run
+  error       String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+
+  results IdentityScanResult[]
+
+  @@index([projectId, createdAt])
+  @@map("identity_scans")
+}
+
+model IdentityScanResult {
+  id           String       @id @default(cuid())
+  scanId       String
+  scan         IdentityScan @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  platform     String
+  category     String?
+  url          String
+  status       String       // FOUND | NOT_FOUND | UNKNOWN | ERROR
+  httpStatus   Int?
+  protection   String?      // e.g. "captcha, cloudflare" — present => result reliability is caveated
+  error        String?
+  evidenceId   String?      // set once the analyst promotes a FOUND hit into the evidence base
+  checkedAt    DateTime     @default(now())
+
+  @@index([scanId, status])
+  @@map("identity_scan_results")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

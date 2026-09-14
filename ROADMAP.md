@@ -162,6 +162,36 @@ timeline, an Information-Gaps section naming the exact unconfigured connectors,
 and clicked a Monitoring Recommendation's "create" button — confirmed via the
 API that it created a real, enabled daily `MonitoringJob`.
 
+## Phase 11 — OSINT module expansion  🟡 in progress
+
+A broader pass adding the identifier-lookup style of OSINT technique (username,
+email, phone, IP, crypto address, corporate registry, geospatial, threat-intel)
+on top of the existing evidence/entity/relationship engines from Phases 2–3.
+Built directly into this app rather than as a separate project so every result
+still flows through the same evidence pipeline, SSRF guard, and job queue.
+Two categories of request were explicitly declined rather than faked: scraping
+platforms that prohibit it in their ToS (Instagram/TikTok/LinkedIn/X), and
+personal-data aggregation (a local mirror of breach dumps, Truecaller-style
+crowdsourced reverse-phone lookup, real face-recognition matching) — those
+report as typed capability gaps, never as silently-degraded fake results.
+
+| Item | State | Notes |
+|---|---|---|
+| Username / identity enumeration (§31) | ✅ | WhatsMyName dataset (fetched live, cached, CC-BY-SA public data — not a bundled Sherlock/Maigret binary) drives existence checks across ~650-680 public platforms (NSFW category excluded by default). One GET/POST per site to the same public profile URL a browser would load; classified FOUND/NOT_FOUND/UNKNOWN from the declared status+substring rule (`packages/core/src/identity.ts`, unit-tested). Sites the dataset flags as CAPTCHA/Cloudflare-protected are still reported but caveated, not silently trusted. Runs as an `IDENTITY_SCAN` job with live progress; any FOUND hit can be promoted straight into the evidence base via the existing URL-ingest path. Verified end-to-end against a real known account (`torvalds` → 110/677 found, including a correct GitHub hit promoted to `EVIDENCE-2026-001206`). |
+| Domain/DNS recon (WHOIS/RDAP, crt.sh subdomains, ASN) | ⚪ planned next | |
+| IP intelligence (Shodan InternetDB, Tor exit list, AbuseIPDB) | ⚪ planned next | |
+| Email intelligence (MX/DMARC/SPF, Gravatar, PGP keyserver, HIBP k-anonymity) | ⚪ planned next | |
+| Crypto address lookup (BTC/ETH public chain data) | ⚪ planned next | |
+| Phone OSINT (libphonenumber-style carrier/region, numverify optional) | ⚪ planned | |
+| Corporate OSINT (OpenCorporates, SEC EDGAR, Companies House, USPTO) | ⚪ planned | |
+| Geospatial (Nominatim, WiGLE, OpenSky) | ⚪ planned | |
+| Threat intel (VirusTotal/URLScan/OTX, optional keys) | ⚪ planned | |
+| Dork/search toolkit + reverse-image/PimEyes launcher links | ⚪ planned | |
+| Instagram/TikTok/LinkedIn/X profile scraping | ❌ **declined by policy** — these platforms prohibit scraping in their ToS; not built, not stubbed as "coming soon" |
+| Truecaller-style crowdsourced reverse-phone lookup | ❌ **declined by policy** — no scraper built for a crowdsourced personal-data aggregator |
+| Local breach-data mirror (DeHashed-style) | ❌ **declined by policy** — hosting a copy of leaked-credential dumps is out of scope regardless of technical feasibility; HIBP's k-anonymity range API (no plaintext ever sent) is the lawful equivalent, planned above |
+| Real face-recognition / biometric matching | ❌ **never built, by policy (§19, §30)**, consistent with the existing Media Intelligence stance |
+
 ---
 
 ## Known blockers (environment)

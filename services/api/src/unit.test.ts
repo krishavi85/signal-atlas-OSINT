@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 process.env.DATABASE_URL ??= 'file:./prisma/dev.db';
-process.env.AUTH_JWT_SECRET ??= 'test-secret-test-secret-test-secret-1234';
 process.env.CREDENTIAL_ENC_KEY ??= Buffer.alloc(32, 7).toString('base64url');
 
 const { encryptSecret, decryptSecret, encryptJson, decryptJson } = await import('./lib/crypto.js');
@@ -18,6 +17,7 @@ const { parseMarkdownBlocks } = await import('./lib/markdownBlocks.js');
 const { LocalStorage } = await import('./lib/storage.js');
 const { buildJobDiagnostics } = await import('./modules/jobs.routes.js');
 const { decideBudget, nextUtcMidnight } = await import('./lib/budget.js');
+const { filterSites } = await import('./lib/whatsMyName.js');
 const { ffmpegAvailable } = await import('./lib/ffmpeg.js');
 
 test('crypto: AES-256-GCM round trip + tamper detection', () => {
@@ -285,4 +285,40 @@ test('decideBudget: allows up to the cap, refuses past it, resets at UTC midnigh
 test('ffmpegAvailable: never throws (missing binary reports false, not ENOENT)', async () => {
   const available = await ffmpegAvailable();
   assert.equal(typeof available, 'boolean');
+});
+
+function fakeSite(overrides: Partial<Parameters<typeof filterSites>[0][number]> = {}) {
+  return {
+    name: 'Example',
+    uriCheck: 'https://example.com/{account}',
+    uriPretty: 'https://example.com/{account}',
+    eCode: 200,
+    eString: '',
+    mCode: 404,
+    mString: '',
+    category: 'social',
+    postBody: null,
+    headers: null,
+    stripBadChar: null,
+    protection: [],
+    ...overrides,
+  };
+}
+
+test('filterSites: excludes the NSFW category by default', () => {
+  const sites = [fakeSite({ name: 'A', category: 'social' }), fakeSite({ name: 'B', category: 'xx NSFW xx' })];
+  const out = filterSites(sites);
+  assert.deepEqual(out.map((s) => s.name), ['A']);
+});
+
+test('filterSites: includeNsfw:true keeps it', () => {
+  const sites = [fakeSite({ name: 'A', category: 'social' }), fakeSite({ name: 'B', category: 'xx NSFW xx' })];
+  const out = filterSites(sites, { includeNsfw: true });
+  assert.deepEqual(out.map((s) => s.name).sort(), ['A', 'B']);
+});
+
+test('filterSites: an explicit category allowlist narrows the result', () => {
+  const sites = [fakeSite({ name: 'A', category: 'social' }), fakeSite({ name: 'B', category: 'coding' })];
+  const out = filterSites(sites, { categories: ['coding'] });
+  assert.deepEqual(out.map((s) => s.name), ['B']);
 });

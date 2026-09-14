@@ -6,6 +6,7 @@ import { ingestUrl } from '../orchestrator/UrlIngest.js';
 import { backfillEmbeddings } from '../orchestrator/SemanticIndex.js';
 import { generateReport } from '../orchestrator/AIResearchEngine.js';
 import { collectMediaForProject, processProjectMedia } from '../orchestrator/MediaEngine.js';
+import { runIdentityScan } from '../orchestrator/IdentityScan.js';
 import { runMonitoringJob } from '../orchestrator/MonitoringEngine.js';
 import { runGodModeRun } from '../orchestrator/GodModeOrchestrator.js';
 import { enqueueJob, registerJobHandler } from './runner.js';
@@ -54,6 +55,24 @@ export function registerAllJobHandlers(): void {
     const result = await processProjectMedia(projectId, { vision: Boolean(ctx.payload.vision), transcribe: Boolean(ctx.payload.transcribe) });
     await ctx.reportProgress(result as unknown as Record<string, unknown>);
     return { status: result.errors > 0 && result.processed === 0 ? 'PARTIAL' : 'COMPLETED', result };
+  });
+
+  registerJobHandler('IDENTITY_SCAN', async (ctx) => {
+    const scanId = String(ctx.payload.scanId ?? '');
+    if (!scanId) throw new Error('IDENTITY_SCAN payload missing scanId');
+    try {
+      const result = await runIdentityScan(
+        scanId,
+        async (p) => {
+          await ctx.reportProgress(p as unknown as Record<string, unknown>);
+        },
+        ctx.signal,
+      );
+      return { status: 'COMPLETED', result };
+    } catch (err) {
+      await prisma.identityScan.update({ where: { id: scanId }, data: { status: 'FAILED', error: (err as Error).message, completedAt: new Date() } }).catch(() => {});
+      throw err;
+    }
   });
 
   registerJobHandler('DOCUMENT_INGEST', async (ctx) => {

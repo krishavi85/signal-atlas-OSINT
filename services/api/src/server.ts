@@ -20,6 +20,7 @@ import { intelligenceRoutes } from './modules/intelligence.routes.js';
 import { documentRoutes } from './modules/documents.routes.js';
 import { aiRoutes } from './modules/ai.routes.js';
 import { mediaRoutes } from './modules/media.routes.js';
+import { identityRoutes } from './modules/identity.routes.js';
 import { monitoringRoutes } from './modules/monitoring.routes.js';
 import { exportRoutes } from './modules/export.routes.js';
 import { metricsRoutes } from './modules/metrics.routes.js';
@@ -110,6 +111,7 @@ export async function buildServer(): Promise<FastifyInstance> {
       'AI research analyst — evidence-grounded Q&A, AI query expansion, report generation (when an AI provider is configured); anti-hallucination citation validation',
       'Explainable confidence ("WHY?") with exposed factors',
       'God Mode — one TARGET/OBJECTIVE/DEPTH run composing every engine (search, evidence, entities, resolution, relationships, claims, corroboration, contradictions, timeline, report, monitoring recommendations) into the full §56 15-section result',
+        'Username enumeration — WhatsMyName-dataset-driven existence checks across ~650 public platforms (no login, no scraping beyond a single public profile response); promote any FOUND hit straight into the evidence base',
         ...(transcription.available ? ['Video/audio transcription via ffmpeg + Whisper (when OPENAI_API_KEY is configured)'] : []),
         'Load/performance test harness (npm run load-test -w @osint/api)',
       ],
@@ -151,6 +153,7 @@ export async function buildServer(): Promise<FastifyInstance> {
       await api.register(documentRoutes);
       await api.register(aiRoutes);
       await api.register(mediaRoutes);
+      await api.register(identityRoutes);
       await api.register(monitoringRoutes);
       await api.register(exportRoutes);
       await api.register(godModeRoutes);

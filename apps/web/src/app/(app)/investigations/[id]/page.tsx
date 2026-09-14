@@ -11,6 +11,7 @@ import {
   IconClock,
   IconDatabase,
   IconFileText,
+  IconFingerprint,
   IconFolder,
   IconImage,
   IconLink,
@@ -25,6 +26,7 @@ import { Overview } from './Overview';
 import { SearchTab } from './SearchTab';
 import { EvidenceTab } from './EvidenceTab';
 import { EntitiesTab } from './EntitiesTab';
+import { IdentityTab } from './IdentityTab';
 import { ClaimsTab } from './ClaimsTab';
 import { TimelineTab } from './TimelineTab';
 import { ConnectionsTab } from './ConnectionsTab';
@@ -48,6 +50,7 @@ const TABS = [
   { key: 'Search', icon: IconSearch },
   { key: 'Evidence', icon: IconDatabase },
   { key: 'Entities', icon: IconUsers },
+  { key: 'Identity', icon: IconFingerprint },
   { key: 'Claims', icon: IconShield },
   { key: 'Timeline', icon: IconClock },
   { key: 'Connections', icon: IconLink },
@@ -136,6 +139,7 @@ export default function InvestigationPage() {
         {tab === 'Search' && <SearchTab projectId={id} canEdit={canEdit} projectActive={project.status === 'ACTIVE'} />}
         {tab === 'Evidence' && <EvidenceTab projectId={id} canEdit={canEdit} />}
         {tab === 'Entities' && <EntitiesTab projectId={id} canEdit={canEdit} />}
+        {tab === 'Identity' && <IdentityTab projectId={id} canEdit={canEdit} />}
         {tab === 'Claims' && <ClaimsTab projectId={id} canEdit={canEdit} />}
         {tab === 'Timeline' && <TimelineTab projectId={id} />}
         {tab === 'Connections' && <ConnectionsTab projectId={id} />}
