@@ -6,7 +6,7 @@ import { assertProjectAccess } from './projects.js';
 import { audit } from './audit.js';
 import { currentUser } from '../auth/plugin.js';
 import { enqueueJob } from '../jobs/runner.js';
-import { ingestUrl } from '../orchestrator/UrlIngest.js';
+import { ingestUrlOrExplain } from '../orchestrator/UrlIngest.js';
 import { loadIdentityDataset, filterSites } from '../lib/whatsMyName.js';
 
 const USERNAME_RE = /^[A-Za-z0-9._-]{1,64}$/;
@@ -87,7 +87,7 @@ export async function identityRoutes(app: FastifyInstance): Promise<void> {
     if (result.status !== 'FOUND') throw badRequest('Only FOUND results can be added as evidence.');
     if (result.evidenceId) return { evidenceId: result.evidenceId, reused: true };
 
-    const ingested = await ingestUrl(result.scan.projectId, result.url);
+    const ingested = await ingestUrlOrExplain(result.scan.projectId, result.url);
     await prisma.identityScanResult.update({ where: { id: resultId }, data: { evidenceId: ingested.evidenceId } });
     return { evidenceId: ingested.evidenceId, reused: ingested.reusedExisting };
   });

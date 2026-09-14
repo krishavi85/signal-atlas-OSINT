@@ -49,6 +49,20 @@ const EnvSchema = z.object({
 
   BUDGET_MONTHLY_USD: z.coerce.number().nonnegative().default(0),
   BUDGET_LLM_TOKENS_DAY: z.coerce.number().nonnegative().default(0),
+
+  // Lookup-module optional API keys (§31 Phase 11) — every one of these is
+  // free-tier/keyless-degradable: the relevant lookup reports a typed
+  // capability gap naming the exact missing key rather than failing opaquely.
+  NUMVERIFY_API_KEY: z.string().optional(),
+  OPENCORPORATES_API_KEY: z.string().optional(),
+  COMPANIES_HOUSE_API_KEY: z.string().optional(),
+  WIGLE_API_NAME: z.string().optional(),
+  WIGLE_API_TOKEN: z.string().optional(),
+  OPENSKY_USERNAME: z.string().optional(),
+  OPENSKY_PASSWORD: z.string().optional(),
+  VIRUSTOTAL_API_KEY: z.string().optional(),
+  URLSCAN_API_KEY: z.string().optional(),
+  OTX_API_KEY: z.string().optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema> & {

@@ -9,6 +9,7 @@ import { Badge, ErrorState, Spinner } from '@/components/ui';
 import {
   IconChevronRight,
   IconClock,
+  IconCompass,
   IconDatabase,
   IconFileText,
   IconFingerprint,
@@ -27,6 +28,7 @@ import { SearchTab } from './SearchTab';
 import { EvidenceTab } from './EvidenceTab';
 import { EntitiesTab } from './EntitiesTab';
 import { IdentityTab } from './IdentityTab';
+import { LookupsTab } from './LookupsTab';
 import { ClaimsTab } from './ClaimsTab';
 import { TimelineTab } from './TimelineTab';
 import { ConnectionsTab } from './ConnectionsTab';
@@ -51,6 +53,7 @@ const TABS = [
   { key: 'Evidence', icon: IconDatabase },
   { key: 'Entities', icon: IconUsers },
   { key: 'Identity', icon: IconFingerprint },
+  { key: 'Lookups', icon: IconCompass },
   { key: 'Claims', icon: IconShield },
   { key: 'Timeline', icon: IconClock },
   { key: 'Connections', icon: IconLink },
@@ -140,6 +143,7 @@ export default function InvestigationPage() {
         {tab === 'Evidence' && <EvidenceTab projectId={id} canEdit={canEdit} />}
         {tab === 'Entities' && <EntitiesTab projectId={id} canEdit={canEdit} />}
         {tab === 'Identity' && <IdentityTab projectId={id} canEdit={canEdit} />}
+        {tab === 'Lookups' && <LookupsTab projectId={id} canEdit={canEdit} />}
         {tab === 'Claims' && <ClaimsTab projectId={id} canEdit={canEdit} />}
         {tab === 'Timeline' && <TimelineTab projectId={id} />}
         {tab === 'Connections' && <ConnectionsTab projectId={id} />}

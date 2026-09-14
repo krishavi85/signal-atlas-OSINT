@@ -12,3 +12,4 @@ export * from './query-expansion.js';
 export * from './claims.js';
 export * from './contradiction.js';
 export * from './identity.js';
+export * from './dorks.js';

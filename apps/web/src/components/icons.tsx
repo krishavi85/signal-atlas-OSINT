@@ -150,6 +150,13 @@ export const IconLogout = base(
   </>,
 );
 
+export const IconCompass = base(
+  <>
+    <circle cx="12" cy="12" r="9" />
+    <path d="m14.5 9.5-1.8 4.7-4.7 1.8 1.8-4.7 4.7-1.8Z" strokeLinejoin="round" />
+  </>,
+);
+
 export const IconFingerprint = base(
   <>
     <path d="M12 3a7 7 0 0 0-7 7c0 2.5.5 4.5 1.5 6" />

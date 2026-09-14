@@ -21,6 +21,7 @@ import { documentRoutes } from './modules/documents.routes.js';
 import { aiRoutes } from './modules/ai.routes.js';
 import { mediaRoutes } from './modules/media.routes.js';
 import { identityRoutes } from './modules/identity.routes.js';
+import { lookupsRoutes } from './modules/lookups.routes.js';
 import { monitoringRoutes } from './modules/monitoring.routes.js';
 import { exportRoutes } from './modules/export.routes.js';
 import { metricsRoutes } from './modules/metrics.routes.js';
@@ -112,6 +113,7 @@ export async function buildServer(): Promise<FastifyInstance> {
       'Explainable confidence ("WHY?") with exposed factors',
       'God Mode — one TARGET/OBJECTIVE/DEPTH run composing every engine (search, evidence, entities, resolution, relationships, claims, corroboration, contradictions, timeline, report, monitoring recommendations) into the full §56 15-section result',
         'Username enumeration — WhatsMyName-dataset-driven existence checks across ~650 public platforms (no login, no scraping beyond a single public profile response); promote any FOUND hit straight into the evidence base',
+        'OSINT lookup toolkit — phone (libphonenumber + optional numverify), corporate registries (SEC EDGAR live, OpenCorporates/Companies House with a key), geospatial (Nominatim/OpenSky live, WiGLE with a key), threat intel (URLScan.io live, VirusTotal/OTX with a key), and a dork-query + reverse-image-search launcher toolkit',
         ...(transcription.available ? ['Video/audio transcription via ffmpeg + Whisper (when OPENAI_API_KEY is configured)'] : []),
         'Load/performance test harness (npm run load-test -w @osint/api)',
       ],
@@ -154,6 +156,7 @@ export async function buildServer(): Promise<FastifyInstance> {
       await api.register(aiRoutes);
       await api.register(mediaRoutes);
       await api.register(identityRoutes);
+      await api.register(lookupsRoutes);
       await api.register(monitoringRoutes);
       await api.register(exportRoutes);
       await api.register(godModeRoutes);

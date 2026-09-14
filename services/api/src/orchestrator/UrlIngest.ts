@@ -3,6 +3,7 @@ import { prisma } from '../db.js';
 import { logger } from '../logger.js';
 import { audit } from '../modules/audit.js';
 import { nextEvidenceId } from '../lib/ids.js';
+import { unprocessable } from '../lib/errors.js';
 import { makeConnectorContext, registry } from '../connectors/runtime.js';
 import { extractEntitiesForEvidence } from './pipeline.js';
 import { buildRelationshipsForProject } from './RelationshipBuilder.js';
@@ -113,4 +114,28 @@ export async function ingestUrl(
   }
 
   return { evidenceId, entities: entityLinks, reusedExisting: false };
+}
+
+/**
+ * Route-facing wrapper: a fetch can legitimately fail for reasons that are
+ * neither a bug nor sensitive (SSRF refusal, robots.txt disallow, a dead
+ * link) — e.g. several "official registry" result pages this platform
+ * links to (SEC EDGAR's browse-edgar CGI, in particular) block automated
+ * retrieval in their own robots.txt even though a human clicking the same
+ * link is fine. Left unwrapped, `ingestUrl`'s Error becomes an opaque 500
+ * (lib/errors.ts hides raw Error messages from the client by default);
+ * this turns it into a real, actionable 422 instead. `ingestUrl` itself
+ * stays unwrapped for the URL_INGEST job handler, where the raw failure
+ * reason belongs in job diagnostics, not an HTTP response.
+ */
+export async function ingestUrlOrExplain(
+  projectId: string,
+  url: string,
+  opts: { render?: boolean } = {},
+): Promise<{ evidenceId: string; entities: number; reusedExisting: boolean }> {
+  try {
+    return await ingestUrl(projectId, url, opts);
+  } catch (err) {
+    throw unprocessable(`Could not add this URL to evidence: ${(err as Error).message}`);
+  }
 }
